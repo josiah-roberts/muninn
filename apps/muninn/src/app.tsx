@@ -3,6 +3,8 @@ import preactLogo from './assets/preact.svg'
 import viteLogo from '/vite.svg'
 import './app.css'
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+
 export function App() {
   const [count, setCount] = useState(0)
 
@@ -23,6 +25,9 @@ export function App() {
         </button>
         <p>
           Edit <code>src/app.tsx</code> and save to test HMR
+        </p>
+        <p>
+          API Base URL: <code>{API_BASE_URL}</code>
         </p>
       </div>
       <p>

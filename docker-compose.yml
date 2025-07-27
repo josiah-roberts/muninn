@@ -1,0 +1,22 @@
+services:
+  muninn-backend:
+    build:
+      context: ./apps/muninn-backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - PORT=8000
+    volumes:
+      - ./:/app
+  muninn:
+    build:
+      context: ./apps/muninn
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    volumes:
+      - ./:/app
