@@ -1,92 +1,120 @@
-# Turborepo starter
+# Muninn
 
-This Turborepo starter is maintained by the Turborepo core team.
+A minimal, self-hosted AI-powered personal knowledge management system with semantic search capabilities.
 
-## Using this example
+## About Muninn
 
-Run the following command:
+Muninn is a personal knowledge management system designed for journaling and notes with powerful AI integration. Named after one of Odin's ravens, it helps you remember and search through your knowledge.
 
-```sh
-npx create-turbo@latest
-```
+### Key Features
 
-## What's inside?
+- **Semantic Search**: AI-powered search using embeddings to find relevant content by meaning, not just keywords
+- **Self-Hosted**: Complete control over your data with Docker-based deployment
+- **AI Integration**: Claude MCP connector for intelligent document editing and organization
+- **Simple Interface**: Minimal design focused on writing and searching
+- **Data Portability**: Export to markdown files for use with other tools
 
-This Turborepo includes the following packages/apps:
+## Architecture
 
-### Apps and Packages
+### Core Components
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+- **Frontend**: React with TypeScript for the web interface
+- **Backend**: Node.js server with MCP (Model Context Protocol) integration
+- **Database**: PostgreSQL with pgvector for semantic search
+- **AI**: Gemini Embeddings for vectorization and Claude for intelligent editing
+- **Deployment**: Docker containers on Unraid with Tailscale Funnel for remote access
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+### Technology Stack
 
-### Utilities
+- **Database**: PostgreSQL with pgvector extension for vector similarity search
+- **Embeddings**: Google Gemini Embeddings 001 for document vectorization
+- **Search**: HNSW indexing for fast semantic similarity queries
+- **Authentication**: Google OAuth for secure access
+- **Transport**: MCP over SSE (Server-Sent Events) for Claude integration
+- **Development**: Turborepo monorepo with TypeScript throughout
 
-This Turborepo has some additional tools already setup for you:
+### Development Tools
+
+This project includes:
 
 - [TypeScript](https://www.typescriptlang.org/) for static type checking
 - [ESLint](https://eslint.org/) for code linting
 - [Prettier](https://prettier.io) for code formatting
+- [Turborepo](https://turborepo.com/) for efficient monorepo management
+- [Docker](https://docker.com/) for containerized deployment
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ and npm/yarn/pnpm
+- Docker and Docker Compose
+- PostgreSQL with pgvector extension
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd muninn
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
 
 ### Build
 
-To build all apps and packages, run the following command:
+To build all packages:
 
-```
-cd my-turborepo
+```bash
+# Build everything
+npm run build
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+# Build specific package
+npm run build --filter=web
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### Development
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+To start development servers:
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+```bash
+# Start all development servers
+npm run dev
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+# Start specific service
+npm run dev --filter=web
+npm run dev --filter=server
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### Docker Deployment
 
+**Development:**
+```bash
+# Start development environment with compose
+docker-compose up --build
 ```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+**Production:**
+```bash
+# Production uses single container with external environment variables
+docker run -d \
+  -p 3000:3000 \
+  -e DATABASE_URL="..." \
+  -e GOOGLE_OAUTH_CLIENT_ID="..." \
+  -e GOOGLE_OAUTH_CLIENT_SECRET="..." \
+  muninn:latest
 ```
+
+Production deployment is designed for platforms like Unraid where environment variables are managed externally.
 
 ### Remote Caching
 
