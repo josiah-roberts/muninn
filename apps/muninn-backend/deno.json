@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "dev": "deno run --watch main.ts",
+    "dev": "deno run --env-file=.env.local --watch --allow-env --allow-net main.ts",
     "build": "deno compile main.ts",
     "test": "deno test"
   }
