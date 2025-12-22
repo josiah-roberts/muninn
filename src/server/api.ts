@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { stream } from "hono/streaming";
+import { z } from "zod";
 import {
   createEntry,
   getEntry,
@@ -19,6 +20,24 @@ import { getSTTProvider } from "../services/stt.ts";
 import { analyzeTranscript, findRelatedEntries, generateInterviewQuestions } from "../services/analysis.ts";
 import { config } from "../config.ts";
 import { existsSync } from "fs";
+
+// Validation: Entry IDs must be alphanumeric with hyphens only (matches generateId pattern)
+const ENTRY_ID_PATTERN = /^[a-zA-Z0-9-]+$/;
+
+function isValidEntryId(id: string): boolean {
+  return ENTRY_ID_PATTERN.test(id) && id.length > 0 && id.length <= 100;
+}
+
+// Zod schema for PATCH /entries/:id - only allow valid entry fields
+const UpdateEntrySchema = z.object({
+  title: z.string().optional(),
+  transcript: z.string().optional(),
+  audio_path: z.string().optional(),
+  audio_duration_seconds: z.number().optional(),
+  status: z.enum(["pending_transcription", "transcribed", "analyzed"]).optional(),
+  analysis_json: z.string().optional(),
+  follow_up_questions: z.string().optional(),
+}).strict(); // Reject unknown keys
 
 const api = new Hono();
 
@@ -107,6 +126,12 @@ api.post("/entries", async (c) => {
 // Upload audio chunk (for chunked uploads)
 api.post("/entries/:id/audio-chunk", async (c) => {
   const id = c.req.param("id");
+
+  // Validate entry ID to prevent path traversal
+  if (!isValidEntryId(id)) {
+    return c.json({ error: "Invalid entry ID" }, 400);
+  }
+
   const entry = getEntry(id);
 
   if (!entry) {
@@ -237,9 +262,19 @@ api.post("/entries/:id/analyze", async (c) => {
 // Update entry
 api.patch("/entries/:id", async (c) => {
   const id = c.req.param("id");
-  const body = await c.req.json();
 
-  const entry = updateEntry(id, body);
+  // Validate request body with Zod schema
+  const body = await c.req.json();
+  const parsed = UpdateEntrySchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({
+      error: "Invalid request body",
+      details: parsed.error.issues
+    }, 400);
+  }
+
+  const entry = updateEntry(id, parsed.data);
   if (!entry) {
     return c.json({ error: "Entry not found" }, 404);
   }
