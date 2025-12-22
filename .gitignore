@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Data (persisted separately)
+data/
+!data/.gitkeep
+
+# Test data
+data-test/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Build
+dist/
