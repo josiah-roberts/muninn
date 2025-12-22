@@ -6,13 +6,15 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
 
 ### Security
 
-- [ ] **SQL injection in updateEntry()** - Column names not whitelisted
+- [x] **SQL injection in updateEntry()** - Column names not whitelisted
   - File: `src/services/storage.ts:65-77`
   - Fix: Add `ALLOWED_FIELDS` whitelist, reject unknown keys
+  - ✓ Fixed: Added Zod schema validation at API layer with `.strict()` to reject unknown fields
 
-- [ ] **Path traversal in chunked audio upload** - Entry ID not validated
+- [x] **Path traversal in chunked audio upload** - Entry ID not validated
   - File: `src/server/api.ts:134`
   - Fix: Validate IDs are alphanumeric + hyphens only
+  - ✓ Fixed: Added `isValidEntryId()` validation before file path construction
 
 - [ ] **XSS vulnerabilities** - innerHTML with unsanitized content
   - File: `src/web/assets/app.js:209-311`
@@ -48,9 +50,10 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - File: `src/server/api.ts:66-105`
   - Fix: Add 50MB limit, reject larger files
 
-- [ ] **No input validation on PATCH** - Accepts arbitrary JSON
+- [x] **No input validation on PATCH** - Accepts arbitrary JSON
   - File: `src/server/api.ts:238-248`
   - Fix: Validate request body with Zod schema
+  - ✓ Fixed: Added `UpdateEntrySchema` Zod validation with `.strict()`
 
 - [ ] **No rate limiting** - API abuse risk, costly Claude calls
   - Files: All API routes, especially `/transcribe` and `/analyze`
