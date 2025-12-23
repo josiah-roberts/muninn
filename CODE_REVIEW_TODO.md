@@ -20,13 +20,15 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - File: `src/web/assets/app.js:209-311`
   - Fix: **Migrate to Preact + TypeScript** (JSX auto-escapes), or add sanitizeHTML()
 
-- [ ] **SESSION_SECRET not used** - Sessions not signed/verified
+- [x] **SESSION_SECRET not used** - Sessions not signed/verified
   - File: `src/server/auth.ts`
   - Fix: HMAC sign session IDs, verify on retrieval
+  - ✓ Fixed: Added HMAC-SHA256 signing with timing-safe verification, production warning for default secret
 
-- [ ] **No CSRF protection** - State-changing routes vulnerable
+- [x] **No CSRF protection** - State-changing routes vulnerable
   - Files: All API routes
   - Fix: Add CSRF tokens or use `sameSite: Strict` cookies
+  - ✓ Fixed: Changed session cookie to sameSite: Strict
 
 ### Data Loss Prevention
 
@@ -113,9 +115,10 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - File: `src/server/api.ts:81-85`
   - Fix: Validate actual file content or whitelist MIME types
 
-- [ ] **Insecure dev cookies**
+- [x] **Insecure dev cookies**
   - File: `src/server/auth.ts:136-137`
   - Fix: Use `sameSite: Strict`, fail if SESSION_SECRET not set in prod
+  - ✓ Fixed: sameSite: Strict, critical warning logged if default secret used in production
 
 ### Code Quality
 
