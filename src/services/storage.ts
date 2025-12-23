@@ -1,4 +1,4 @@
-import { db, type Entry, type EntryStatus, type Tag } from "./db.ts";
+import { db, type Entry, type EntryStatus, type Tag, withTransaction } from "./db.ts";
 import { config } from "../config.ts";
 import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
 import { join } from "path";
@@ -86,19 +86,34 @@ export function deleteEntry(id: string): boolean {
   const entry = getEntry(id);
   if (!entry) return false;
 
-  // Delete audio file if exists
-  if (entry.audio_path && existsSync(entry.audio_path)) {
-    unlinkSync(entry.audio_path);
-  }
-
-  // Delete markdown file
+  // Store paths before deletion
+  const audioPath = entry.audio_path;
   const mdPath = getMarkdownPath(id);
-  if (existsSync(mdPath)) {
-    unlinkSync(mdPath);
+
+  // Delete from database FIRST (in transaction) - this is the critical operation
+  // If this fails, we haven't deleted any files yet, so data is consistent
+  withTransaction(() => {
+    db.prepare("DELETE FROM entries WHERE id = ?").run(id);
+  });
+
+  // Now delete files - if these fail, we log but don't throw
+  // Orphan files are harmless and can be cleaned up later
+  if (audioPath && existsSync(audioPath)) {
+    try {
+      unlinkSync(audioPath);
+    } catch (error) {
+      console.error(`Failed to delete audio file ${audioPath}:`, error);
+    }
   }
 
-  const stmt = db.prepare("DELETE FROM entries WHERE id = ?");
-  stmt.run(id);
+  if (existsSync(mdPath)) {
+    try {
+      unlinkSync(mdPath);
+    } catch (error) {
+      console.error(`Failed to delete markdown file ${mdPath}:`, error);
+    }
+  }
+
   return true;
 }
 
@@ -205,14 +220,25 @@ ${analysis ? `\n## Analysis\n\n${JSON.stringify(analysis, null, 2)}` : ""}
 ${followUps.length > 0 ? `\n## Follow-up Questions\n\n${followUps.map((q, i) => `${i + 1}. ${q}`).join("\n")}` : ""}
 `.trim() + "\n";
 
-  writeFileSync(getMarkdownPath(entry.id), content);
+  try {
+    writeFileSync(getMarkdownPath(entry.id), content);
+  } catch (error) {
+    // Log error but don't throw - markdown sync failure shouldn't break the app
+    // The DB is the source of truth; markdown files are convenience exports
+    console.error(`Failed to sync entry ${entry.id} to markdown:`, error);
+  }
 }
 
 // Audio file handling
 export function saveAudioFile(id: string, data: Buffer, extension: string): string {
   const filename = `${id}.${extension}`;
   const filepath = join(config.audioDir, filename);
-  writeFileSync(filepath, data);
+  try {
+    writeFileSync(filepath, data);
+  } catch (error) {
+    // Audio file save is critical - rethrow with context
+    throw new Error(`Failed to save audio file to ${filepath}: ${error}`);
+  }
   return filepath;
 }
 

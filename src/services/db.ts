@@ -58,6 +58,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_entries_created_at ON entries(created_at);
   CREATE INDEX IF NOT EXISTS idx_entries_status ON entries(status);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_entry_tags_tag_id ON entry_tags(tag_id);
 `);
 
 export type EntryStatus = "pending_transcription" | "transcribed" | "analyzed";
@@ -86,4 +87,18 @@ export interface EntryLink {
   target_id: string;
   relationship: string | null;
   created_at: string;
+}
+
+// Transaction helper - executes a function within a transaction
+// If the function throws, the transaction is rolled back
+export function withTransaction<T>(fn: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
