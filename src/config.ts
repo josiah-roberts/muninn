@@ -17,6 +17,7 @@ export const config = {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/auth/callback",
   },
 
   sessionSecret: process.env.SESSION_SECRET || "dev-secret-change-me",

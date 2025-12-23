@@ -99,6 +99,7 @@ async function uploadRecording() {
   updateDataSafety('pending', 'Uploading...');
 
   const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+  audioChunks = []; // Clear to free memory
   const formData = new FormData();
   formData.append('audio', blob, 'recording.webm');
 

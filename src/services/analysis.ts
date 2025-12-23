@@ -119,7 +119,9 @@ export async function findRelatedEntries(
       try {
         const a = JSON.parse(e.analysis_json) as AnalysisResult;
         summary = a.summary;
-      } catch {}
+      } catch (err) {
+        console.error(`Failed to parse analysis_json for entry ${e.id}:`, err);
+      }
     }
     return {
       id: e.id,
@@ -195,7 +197,9 @@ export async function generateInterviewQuestions(recentEntries: Entry[]): Promis
     if (e.analysis_json) {
       try {
         analysis = JSON.parse(e.analysis_json);
-      } catch {}
+      } catch (err) {
+        console.error(`Failed to parse analysis_json for entry ${e.id}:`, err);
+      }
     }
     return {
       title: e.title || analysis?.title || "Untitled",

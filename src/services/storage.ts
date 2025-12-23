@@ -192,14 +192,18 @@ export function syncEntryToMarkdown(entry: Entry): void {
   if (entry.analysis_json) {
     try {
       analysis = JSON.parse(entry.analysis_json);
-    } catch {}
+    } catch (err) {
+      console.error(`Failed to parse analysis_json for entry ${entry.id}:`, err);
+    }
   }
 
   let followUps: string[] = [];
   if (entry.follow_up_questions) {
     try {
       followUps = JSON.parse(entry.follow_up_questions);
-    } catch {}
+    } catch (err) {
+      console.error(`Failed to parse follow_up_questions for entry ${entry.id}:`, err);
+    }
   }
 
   const content = `---
