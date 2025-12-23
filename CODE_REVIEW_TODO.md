@@ -50,18 +50,20 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
 
 ### Security
 
-- [ ] **Unrestricted file upload size** - DoS risk
+- [x] **Unrestricted file upload size** - DoS risk
   - File: `src/server/api.ts:66-105`
   - Fix: Add 50MB limit, reject larger files
+  - ✓ Fixed: Added MAX_FILE_SIZE_BYTES (50MB), validates both single uploads and chunked uploads
 
 - [x] **No input validation on PATCH** - Accepts arbitrary JSON
   - File: `src/server/api.ts:238-248`
   - Fix: Validate request body with Zod schema
   - ✓ Fixed: Added `UpdateEntrySchema` Zod validation with `.strict()`
 
-- [ ] **No rate limiting** - API abuse risk, costly Claude calls
+- [x] **No rate limiting** - API abuse risk, costly Claude calls
   - Files: All API routes, especially `/transcribe` and `/analyze`
   - Fix: Add rate limiting middleware (e.g., hono-rate-limiter)
+  - ✓ Fixed: Added in-memory rate limiter (100/min general, 10/min for AI endpoints)
 
 - [ ] **OAuth state in memory** - Lost on restart
   - File: `src/server/auth.ts:69-79`
@@ -104,17 +106,20 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
 
 ### Security
 
-- [ ] **LIKE wildcards not escaped in search**
+- [x] **LIKE wildcards not escaped in search**
   - File: `src/services/storage.ts:225-234`
   - Fix: Escape `%` and `_` in user input
+  - ✓ Fixed: Added escapeLikePattern() function, uses ESCAPE clause in SQL
 
-- [ ] **Error messages expose internals**
+- [x] **Error messages expose internals**
   - Files: `src/server/api.ts:183,233`
   - Fix: Log full errors server-side, return generic messages to client
+  - ✓ Fixed: Removed `details: String(error)` from transcription and analysis error responses
 
-- [ ] **Missing MIME validation on upload**
+- [x] **Missing MIME validation on upload**
   - File: `src/server/api.ts:81-85`
   - Fix: Validate actual file content or whitelist MIME types
+  - ✓ Fixed: Added ALLOWED_AUDIO_MIME_TYPES whitelist, validates both single and chunked uploads
 
 - [x] **Insecure dev cookies**
   - File: `src/server/auth.ts:136-137`

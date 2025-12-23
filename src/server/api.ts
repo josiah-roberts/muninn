@@ -21,12 +21,36 @@ import { getSTTProvider } from "../services/stt.ts";
 import { analyzeTranscript, findRelatedEntries, generateInterviewQuestions } from "../services/analysis.ts";
 import { config } from "../config.ts";
 import { existsSync } from "fs";
+import { rateLimit, aiRateLimit } from "./rate-limit.ts";
 
 // Validation: Entry IDs must be alphanumeric with hyphens only (matches generateId pattern)
 const ENTRY_ID_PATTERN = /^[a-zA-Z0-9-]+$/;
 
 function isValidEntryId(id: string): boolean {
   return ENTRY_ID_PATTERN.test(id) && id.length > 0 && id.length <= 100;
+}
+
+// File upload constraints
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+const ALLOWED_AUDIO_MIME_TYPES = [
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp3",
+  "audio/mpeg",
+  "audio/mp4", // For iOS Safari compatibility
+  "audio/x-m4a",
+] as const;
+
+function isAllowedAudioMimeType(mimeType: string): boolean {
+  return ALLOWED_AUDIO_MIME_TYPES.some(allowed => mimeType.startsWith(allowed));
+}
+
+function getExtensionFromMimeType(mimeType: string): string {
+  if (mimeType.includes("webm")) return "webm";
+  if (mimeType.includes("ogg")) return "ogg";
+  if (mimeType.includes("mp3") || mimeType.includes("mpeg")) return "mp3";
+  if (mimeType.includes("mp4") || mimeType.includes("m4a")) return "m4a";
+  return "webm"; // fallback
 }
 
 // Zod schema for PATCH /entries/:id - only allow valid entry fields
@@ -41,6 +65,9 @@ const UpdateEntrySchema = z.object({
 }).strict(); // Reject unknown keys
 
 const api = new Hono();
+
+// Apply general rate limiting to all API routes
+api.use("*", rateLimit);
 
 // List entries
 api.get("/entries", async (c) => {
@@ -95,15 +122,20 @@ api.post("/entries", async (c) => {
       return c.json({ error: "No audio file provided" }, 400);
     }
 
+    // Validate MIME type
+    if (!isAllowedAudioMimeType(audioFile.type)) {
+      return c.json({ error: "Invalid audio format. Allowed: webm, ogg, mp3, mp4, m4a" }, 400);
+    }
+
+    // Validate file size
+    if (audioFile.size > MAX_FILE_SIZE_BYTES) {
+      return c.json({ error: "File too large. Maximum size is 50MB" }, 413);
+    }
+
     const entry = createEntry();
     const buffer = Buffer.from(await audioFile.arrayBuffer());
 
-    // Determine extension from mime type
-    const ext = audioFile.type.includes("webm") ? "webm"
-      : audioFile.type.includes("ogg") ? "ogg"
-      : audioFile.type.includes("mp3") ? "mp3"
-      : "webm";
-
+    const ext = getExtensionFromMimeType(audioFile.type);
     const audioPath = saveAudioFile(entry.id, buffer, ext);
     const updated = updateEntry(entry.id, { audio_path: audioPath });
 
@@ -125,6 +157,9 @@ api.post("/entries", async (c) => {
 });
 
 // Upload audio chunk (for chunked uploads)
+// Track accumulated chunk sizes per entry to enforce total size limit
+const chunkAccumulator = new Map<string, number>();
+
 api.post("/entries/:id/audio-chunk", async (c) => {
   const id = c.req.param("id");
 
@@ -148,12 +183,22 @@ api.post("/entries/:id/audio-chunk", async (c) => {
     return c.json({ error: "No chunk provided" }, 400);
   }
 
-  // For simplicity, we'll handle this by accumulating chunks
-  // In production, you might want to use a more sophisticated approach
-  const buffer = Buffer.from(await chunk.arrayBuffer());
+  // Validate MIME type
+  if (!isAllowedAudioMimeType(chunk.type)) {
+    return c.json({ error: "Invalid audio format. Allowed: webm, ogg, mp3, mp4, m4a" }, 400);
+  }
 
-  // Append to existing file or create new
-  const ext = chunk.type.includes("webm") ? "webm" : "ogg";
+  // Track accumulated size for this entry
+  const currentSize = chunkAccumulator.get(id) || 0;
+  const newSize = currentSize + chunk.size;
+
+  if (newSize > MAX_FILE_SIZE_BYTES) {
+    chunkAccumulator.delete(id); // Reset on error
+    return c.json({ error: "Total file size exceeds 50MB limit" }, 413);
+  }
+
+  const buffer = Buffer.from(await chunk.arrayBuffer());
+  const ext = getExtensionFromMimeType(chunk.type);
   const { appendFileSync, writeFileSync } = await import("fs");
   const { join } = await import("path");
 
@@ -161,19 +206,22 @@ api.post("/entries/:id/audio-chunk", async (c) => {
 
   if (chunkIndex === "0") {
     writeFileSync(audioPath, buffer);
+    chunkAccumulator.set(id, chunk.size);
   } else {
     appendFileSync(audioPath, buffer);
+    chunkAccumulator.set(id, newSize);
   }
 
   if (isLast) {
+    chunkAccumulator.delete(id); // Cleanup
     updateEntry(id, { audio_path: audioPath });
   }
 
   return c.json({ success: true, isLast });
 });
 
-// Trigger transcription
-api.post("/entries/:id/transcribe", async (c) => {
+// Trigger transcription (with stricter rate limiting for expensive STT calls)
+api.post("/entries/:id/transcribe", aiRateLimit, async (c) => {
   const id = c.req.param("id");
   const entry = getEntry(id);
 
@@ -206,12 +254,13 @@ api.post("/entries/:id/transcribe", async (c) => {
     return c.json(updated);
   } catch (error) {
     console.error("Transcription error:", error);
-    return c.json({ error: "Transcription failed", details: String(error) }, 500);
+    // Log full error server-side, return generic message to client
+    return c.json({ error: "Transcription failed" }, 500);
   }
 });
 
-// Trigger analysis
-api.post("/entries/:id/analyze", async (c) => {
+// Trigger analysis (with stricter rate limiting for expensive Claude calls)
+api.post("/entries/:id/analyze", aiRateLimit, async (c) => {
   const id = c.req.param("id");
   const entry = getEntry(id);
 
@@ -263,7 +312,8 @@ api.post("/entries/:id/analyze", async (c) => {
     });
   } catch (error) {
     console.error("Analysis error:", error);
-    return c.json({ error: "Analysis failed", details: String(error) }, 500);
+    // Log full error server-side, return generic message to client
+    return c.json({ error: "Analysis failed" }, 500);
   }
 });
 
