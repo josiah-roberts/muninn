@@ -34,9 +34,10 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - File: `src/web/assets/app.js:93-151`
   - Fix: Store blob before upload, implement retry with exponential backoff, add IndexedDB fallback
 
-- [ ] **No timeouts on external APIs** - Can hang indefinitely
+- [x] **No timeouts on external APIs** - Can hang indefinitely
   - Files: `src/services/stt.ts:33`, `src/services/analysis.ts:36,117,186`
   - Fix: Add AbortSignal with 60s timeout for STT, 120s for Claude
+  - ✓ Fixed: Added 60s timeout for STT via fetchWithTimeout, 120s for Claude via SDK timeout option
 
 - [ ] **No transactions for multi-step operations**
   - Files: `src/services/storage.ts:85-103` (deleteEntry), `src/server/api.ts:204-213` (analysis)
@@ -73,9 +74,10 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - File: `src/web/assets/app.js:49-53`
   - Fix: Add `audio/mp4` fallback, check MediaRecorder support at startup
 
-- [ ] **No retry logic for external APIs**
+- [x] **No retry logic for external APIs**
   - Files: `src/services/stt.ts`, `src/services/analysis.ts`
   - Fix: Add exponential backoff retry (3 attempts)
+  - ✓ Fixed: Created withRetry utility with exponential backoff, applied to all external API calls
 
 - [ ] **Race condition in markdown sync**
   - File: `src/services/storage.ts:79-81`
