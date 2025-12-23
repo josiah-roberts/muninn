@@ -41,9 +41,10 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - Fix: Add AbortSignal with 60s timeout for STT, 120s for Claude
   - ✓ Fixed: Added 60s timeout for STT via fetchWithTimeout, 120s for Claude via SDK timeout option
 
-- [ ] **No transactions for multi-step operations**
+- [x] **No transactions for multi-step operations**
   - Files: `src/services/storage.ts:85-103` (deleteEntry), `src/server/api.ts:204-213` (analysis)
   - Fix: Wrap in `db.transaction()`, delete files AFTER DB success
+  - ✓ Fixed: Added `withTransaction()` helper, deleteEntry deletes DB first then files, analyze endpoint wraps all DB ops in transaction
 
 ## High Priority
 
@@ -122,17 +123,19 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
 
 ### Code Quality
 
-- [ ] **File operation errors not handled**
+- [x] **File operation errors not handled**
   - File: `src/services/storage.ts:208,215`
   - Fix: Wrap in try-catch, log errors, queue for retry
+  - ✓ Fixed: Added try-catch to syncEntryToMarkdown (logs error, doesn't throw) and saveAudioFile (rethrows with context)
 
 - [ ] **Silent JSON parse failures**
   - File: `src/services/analysis.ts:104-107,176-177`
   - Fix: Log parse errors, return error indicator
 
-- [ ] **Missing index on entry_tags.tag_id**
+- [x] **Missing index on entry_tags.tag_id**
   - File: `src/services/db.ts:38-41`
   - Fix: Add `CREATE INDEX idx_entry_tags_tag_id ON entry_tags(tag_id)`
+  - ✓ Fixed: Added index in schema initialization
 
 - [ ] **YAML special characters not escaped in markdown**
   - File: `src/services/storage.ts:190-206`

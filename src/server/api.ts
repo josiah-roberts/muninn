@@ -16,6 +16,7 @@ import {
   getLinkedEntries,
   searchEntries,
 } from "../services/storage.ts";
+import { withTransaction } from "../services/db.ts";
 import { getSTTProvider } from "../services/stt.ts";
 import { analyzeTranscript, findRelatedEntries, generateInterviewQuestions } from "../services/analysis.ts";
 import { config } from "../config.ts";
@@ -224,24 +225,31 @@ api.post("/entries/:id/analyze", async (c) => {
 
   try {
     const existingTags = getAllTags();
+
+    // External API calls happen outside the transaction (they're slow and don't touch DB)
     const analysis = await analyzeTranscript(entry.transcript, existingTags);
-
-    // Apply tags
-    for (const tagName of analysis.tags) {
-      addTagToEntry(id, tagName);
-    }
-
-    // Find and create links
     const related = await findRelatedEntries(entry, analysis);
-    for (const { entry: relatedEntry, reason } of related) {
-      linkEntries(id, relatedEntry.id, reason);
-    }
 
-    const updated = updateEntry(id, {
-      title: analysis.title,
-      analysis_json: JSON.stringify(analysis),
-      follow_up_questions: JSON.stringify(analysis.follow_up_questions),
-      status: "analyzed",
+    // Wrap all DB operations in a transaction for atomicity
+    // If any operation fails, the entire analysis update is rolled back
+    const updated = withTransaction(() => {
+      // Apply tags
+      for (const tagName of analysis.tags) {
+        addTagToEntry(id, tagName);
+      }
+
+      // Create links to related entries
+      for (const { entry: relatedEntry, reason } of related) {
+        linkEntries(id, relatedEntry.id, reason);
+      }
+
+      // Update entry with analysis data
+      return updateEntry(id, {
+        title: analysis.title,
+        analysis_json: JSON.stringify(analysis),
+        follow_up_questions: JSON.stringify(analysis.follow_up_questions),
+        status: "analyzed",
+      });
     });
 
     return c.json({
