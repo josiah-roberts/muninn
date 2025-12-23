@@ -3,12 +3,59 @@ import type { Context, MiddlewareHandler } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { config } from "../config.ts";
 import { db } from "../services/db.ts";
+import { createHmac, timingSafeEqual } from "crypto";
+
+// Warn if using default dev secret in production
+if (process.env.NODE_ENV === "production" && config.sessionSecret === "dev-secret-change-me") {
+  console.error("CRITICAL: SESSION_SECRET is not set in production! Sessions are insecure.");
+}
 
 // Type for our context variables
 type Variables = {
   session: Session;
   userEmail: string;
 };
+
+// HMAC signing for session IDs to prevent forgery
+// Exported for testing
+export function signSessionId(sessionId: string): string {
+  const hmac = createHmac("sha256", config.sessionSecret);
+  hmac.update(sessionId);
+  const signature = hmac.digest("hex");
+  return `${sessionId}.${signature}`;
+}
+
+// Exported for testing
+export function verifyAndExtractSessionId(signedSessionId: string): string | null {
+  const parts = signedSessionId.split(".");
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  const [sessionId, providedSignature] = parts;
+
+  const hmac = createHmac("sha256", config.sessionSecret);
+  hmac.update(sessionId);
+  const expectedSignature = hmac.digest("hex");
+
+  // Use timing-safe comparison to prevent timing attacks
+  try {
+    const providedBuffer = Buffer.from(providedSignature, "hex");
+    const expectedBuffer = Buffer.from(expectedSignature, "hex");
+
+    if (providedBuffer.length !== expectedBuffer.length) {
+      return null;
+    }
+
+    if (!timingSafeEqual(providedBuffer, expectedBuffer)) {
+      return null;
+    }
+
+    return sessionId;
+  } catch {
+    return null;
+  }
+}
 
 // Initialize Google OAuth
 const google = new Google(
@@ -131,10 +178,13 @@ export function getAuthRoutes() {
         // Create session
         const session = createSession(userInfo.email);
 
-        setCookie(c, "session", session.id, {
+        // Sign the session ID to prevent forgery
+        const signedSessionId = signSessionId(session.id);
+
+        setCookie(c, "session", signedSessionId, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "Lax",
+          sameSite: "Strict", // Strict for CSRF protection
           maxAge: 30 * 24 * 60 * 60, // 30 days
           path: "/",
         });
@@ -148,9 +198,12 @@ export function getAuthRoutes() {
 
     // Logout
     async logout(c: Context) {
-      const sessionId = getCookie(c, "session");
-      if (sessionId) {
-        deleteSession(sessionId);
+      const signedSessionId = getCookie(c, "session");
+      if (signedSessionId) {
+        const sessionId = verifyAndExtractSessionId(signedSessionId);
+        if (sessionId) {
+          deleteSession(sessionId);
+        }
         deleteCookie(c, "session");
       }
       return c.redirect("/");
@@ -160,14 +213,25 @@ export function getAuthRoutes() {
 
 // Auth middleware
 export const requireAuth: MiddlewareHandler = async (c, next) => {
-  const sessionId = getCookie(c, "session");
+  const signedSessionId = getCookie(c, "session");
 
-  if (!sessionId) {
+  if (!signedSessionId) {
     // For API requests, return 401
     if (c.req.path.startsWith("/api/")) {
       return c.json({ error: "Unauthorized" }, 401);
     }
     // For browser requests, redirect to login
+    return c.redirect("/auth/login");
+  }
+
+  // Verify the signature and extract the session ID
+  const sessionId = verifyAndExtractSessionId(signedSessionId);
+  if (!sessionId) {
+    // Invalid signature - possible tampering
+    deleteCookie(c, "session");
+    if (c.req.path.startsWith("/api/")) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
     return c.redirect("/auth/login");
   }
 
@@ -189,13 +253,17 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
 
 // Optional auth (doesn't require, but loads if present)
 export const optionalAuth: MiddlewareHandler = async (c, next) => {
-  const sessionId = getCookie(c, "session");
+  const signedSessionId = getCookie(c, "session");
 
-  if (sessionId) {
-    const session = getSession(sessionId);
-    if (session) {
-      c.set("session", session);
-      c.set("userEmail", session.user_email);
+  if (signedSessionId) {
+    // Verify the signature and extract the session ID
+    const sessionId = verifyAndExtractSessionId(signedSessionId);
+    if (sessionId) {
+      const session = getSession(sessionId);
+      if (session) {
+        c.set("session", session);
+        c.set("userEmail", session.user_email);
+      }
     }
   }
 
