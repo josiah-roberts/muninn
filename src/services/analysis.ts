@@ -2,9 +2,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { type Entry, type Tag } from "./db.ts";
 import { getEntryTags, listEntries } from "./storage.ts";
+import { withRetry } from "./retry.ts";
+
+// Timeout for Claude API requests (120 seconds - analysis can be complex)
+const CLAUDE_TIMEOUT_MS = 120_000;
 
 const anthropic = new Anthropic({
   apiKey: config.anthropicApiKey,
+  timeout: CLAUDE_TIMEOUT_MS,
 });
 
 export interface AnalysisResult {
@@ -33,13 +38,15 @@ export async function analyzeTranscript(
 ): Promise<AnalysisResult> {
   const tagList = existingTags.map(t => t.name).join(", ");
 
-  const response = await anthropic.messages.create({
-    model: "claude-opus-4-5-20251101",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: `You are analyzing a personal journal entry that was transcribed from speech. Extract structured information to help organize and make this content discoverable.
+  return withRetry(
+    async () => {
+      const response = await anthropic.messages.create({
+        model: "claude-opus-4-5-20251101",
+        max_tokens: 2000,
+        messages: [
+          {
+            role: "user",
+            content: `You are analyzing a personal journal entry that was transcribed from speech. Extract structured information to help organize and make this content discoverable.
 
 ${tagList ? `Existing tags in the journal: ${tagList}` : "This is a new journal, no existing tags yet."}
 
@@ -64,22 +71,30 @@ Provide your analysis as JSON matching this structure:
 }
 
 Respond with only the JSON, no other text.`,
+          },
+        ],
+      });
+
+      const content = response.content[0];
+      if (!content || content.type !== "text") {
+        throw new Error("Unexpected response type from Claude");
+      }
+
+      // Parse the JSON response
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Could not parse JSON from Claude response");
+      }
+
+      return JSON.parse(jsonMatch[0]) as AnalysisResult;
+    },
+    {
+      maxAttempts: 3,
+      onRetry: (error, attempt, delayMs) => {
+        console.warn(`Claude analyzeTranscript retry attempt ${attempt} after ${delayMs}ms:`, error);
       },
-    ],
-  });
-
-  const content = response.content[0];
-  if (!content || content.type !== "text") {
-    throw new Error("Unexpected response type from Claude");
-  }
-
-  // Parse the JSON response
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Could not parse JSON from Claude response");
-  }
-
-  return JSON.parse(jsonMatch[0]) as AnalysisResult;
+    }
+  );
 }
 
 // Find entries that might be related based on analysis
@@ -114,13 +129,15 @@ export async function findRelatedEntries(
     };
   });
 
-  const response = await anthropic.messages.create({
-    model: "claude-opus-4-5-20251101",
-    max_tokens: 1000,
-    messages: [
-      {
-        role: "user",
-        content: `Given this new journal entry:
+  return withRetry(
+    async () => {
+      const response = await anthropic.messages.create({
+        model: "claude-opus-4-5-20251101",
+        max_tokens: 1000,
+        messages: [
+          {
+            role: "user",
+            content: `Given this new journal entry:
 Title: ${analysis.title}
 Summary: ${analysis.summary}
 Themes: ${analysis.themes.join(", ")}
@@ -133,30 +150,34 @@ Return JSON array of related entries:
 [{"id": "entry-id", "reason": "why it's related"}]
 
 Only include genuinely related entries (0-${limit} entries). Respond with only JSON.`,
+          },
+        ],
+      });
+
+      const content = response.content[0];
+      if (!content || content.type !== "text") {
+        return [];
+      }
+
+      const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) return [];
+
+      const related = JSON.parse(jsonMatch[0]) as Array<{ id: string; reason: string }>;
+      return related
+        .map(r => {
+          const foundEntry = recentEntries.find(e => e.id === r.id);
+          return foundEntry ? { entry: foundEntry, reason: r.reason } : null;
+        })
+        .filter((r): r is { entry: Entry; reason: string } => r !== null)
+        .slice(0, limit);
+    },
+    {
+      maxAttempts: 3,
+      onRetry: (error, attempt, delayMs) => {
+        console.warn(`Claude findRelatedEntries retry attempt ${attempt} after ${delayMs}ms:`, error);
       },
-    ],
-  });
-
-  const content = response.content[0];
-  if (!content || content.type !== "text") {
-    return [];
-  }
-
-  try {
-    const jsonMatch = content.text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-
-    const related = JSON.parse(jsonMatch[0]) as Array<{ id: string; reason: string }>;
-    return related
-      .map(r => {
-        const foundEntry = recentEntries.find(e => e.id === r.id);
-        return foundEntry ? { entry: foundEntry, reason: r.reason } : null;
-      })
-      .filter((r): r is { entry: Entry; reason: string } => r !== null)
-      .slice(0, limit);
-  } catch {
-    return [];
-  }
+    }
+  );
 }
 
 // Generate follow-up prompts based on recent entries
@@ -183,32 +204,38 @@ export async function generateInterviewQuestions(recentEntries: Entry[]): Promis
     };
   });
 
-  const response = await anthropic.messages.create({
-    model: "claude-opus-4-5-20251101",
-    max_tokens: 500,
-    messages: [
-      {
-        role: "user",
-        content: `Based on these recent journal entries, suggest 3-5 thoughtful questions to prompt the next journaling session. The questions should help explore unfinished threads, invite deeper reflection, or connect ideas across entries.
+  return withRetry(
+    async () => {
+      const response = await anthropic.messages.create({
+        model: "claude-opus-4-5-20251101",
+        max_tokens: 500,
+        messages: [
+          {
+            role: "user",
+            content: `Based on these recent journal entries, suggest 3-5 thoughtful questions to prompt the next journaling session. The questions should help explore unfinished threads, invite deeper reflection, or connect ideas across entries.
 
 Recent entries:
 ${JSON.stringify(context, null, 2)}
 
 Provide questions as a JSON array of strings. Be specific and personal based on the content.`,
+          },
+        ],
+      });
+
+      const content = response.content[0];
+      if (!content || content.type !== "text") {
+        return [];
+      }
+
+      const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) return [];
+      return JSON.parse(jsonMatch[0]) as string[];
+    },
+    {
+      maxAttempts: 3,
+      onRetry: (error, attempt, delayMs) => {
+        console.warn(`Claude generateInterviewQuestions retry attempt ${attempt} after ${delayMs}ms:`, error);
       },
-    ],
-  });
-
-  const content = response.content[0];
-  if (!content || content.type !== "text") {
-    return [];
-  }
-
-  try {
-    const jsonMatch = content.text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-    return JSON.parse(jsonMatch[0]) as string[];
-  } catch {
-    return [];
-  }
+    }
+  );
 }

@@ -1,4 +1,8 @@
 import { config } from "../config.ts";
+import { withRetry, fetchWithTimeout } from "./retry.ts";
+
+// Timeout for STT requests (60 seconds - audio transcription can take time)
+const STT_TIMEOUT_MS = 60_000;
 
 export interface TranscriptionResult {
   text: string;
@@ -29,21 +33,32 @@ class FasterWhisperProvider implements STTProvider {
     const formData = new FormData();
     formData.append("audio_file", new Blob([audioData], { type: mimeType }), `audio.${extension}`);
 
-    // The whisper-asr-webservice endpoint
-    const response = await fetch(`${this.baseUrl}/asr?output=json`, {
-      method: "POST",
-      body: formData,
-    });
+    // Retry with exponential backoff and timeout
+    return withRetry(
+      async () => {
+        const response = await fetchWithTimeout(`${this.baseUrl}/asr?output=json`, {
+          method: "POST",
+          body: formData,
+          timeoutMs: STT_TIMEOUT_MS,
+        });
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Whisper transcription failed: ${response.status} - ${text}`);
-    }
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Whisper transcription failed: ${response.status} - ${text}`);
+        }
 
-    const result = await response.json() as { text: string };
-    return {
-      text: result.text.trim(),
-    };
+        const result = await response.json() as { text: string };
+        return {
+          text: result.text.trim(),
+        };
+      },
+      {
+        maxAttempts: 3,
+        onRetry: (error, attempt, delayMs) => {
+          console.warn(`STT retry attempt ${attempt} after ${delayMs}ms:`, error);
+        },
+      }
+    );
   }
 }
 
