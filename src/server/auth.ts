@@ -61,7 +61,7 @@ export function verifyAndExtractSessionId(signedSessionId: string): string | nul
 const google = new Google(
   config.google.clientId,
   config.google.clientSecret,
-  "http://localhost:3000/auth/callback" // Will need to be updated for production
+  config.google.redirectUri
 );
 
 // Session management

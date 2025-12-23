@@ -69,9 +69,10 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - File: `src/server/auth.ts:69-79`
   - Fix: Store in SQLite with short TTL
 
-- [ ] **Hardcoded OAuth redirect URI**
+- [x] **Hardcoded OAuth redirect URI**
   - File: `src/server/auth.ts:14-18`
   - Fix: Move to environment variable
+  - ✓ Fixed: Added GOOGLE_REDIRECT_URI env var with localhost default
 
 ### Reliability
 
@@ -133,9 +134,10 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - Fix: Wrap in try-catch, log errors, queue for retry
   - ✓ Fixed: Added try-catch to syncEntryToMarkdown (logs error, doesn't throw) and saveAudioFile (rethrows with context)
 
-- [ ] **Silent JSON parse failures**
+- [x] **Silent JSON parse failures**
   - File: `src/services/analysis.ts:104-107,176-177`
   - Fix: Log parse errors, return error indicator
+  - ✓ Fixed: Added console.error logging to all JSON parse catch blocks in analysis.ts and storage.ts
 
 - [x] **Missing index on entry_tags.tag_id**
   - File: `src/services/db.ts:38-41`
@@ -153,9 +155,10 @@ Generated from parallel code review on 2024-12-22. Issues prioritized by severit
   - Benefits: Type safety, JSX auto-escaping (fixes XSS), better maintainability
   - Add: Vite for bundling with HMR
 
-- [ ] **Memory leak from audio chunks**
+- [x] **Memory leak from audio chunks**
   - File: `src/web/assets/app.js:56-68`
   - Fix: Clear `audioChunks = []` after blob creation
+  - ✓ Fixed: Clear array immediately after creating blob
 
 - [ ] **No loading states on buttons**
   - File: `src/web/assets/app.js:323-345`
