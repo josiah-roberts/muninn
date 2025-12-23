@@ -247,14 +247,22 @@ export function getAudioFilePath(id: string): string | null {
   return entry?.audio_path || null;
 }
 
+// Escape LIKE wildcards in user input to prevent unintended pattern matching
+function escapeLikePattern(query: string): string {
+  return query
+    .replace(/\\/g, "\\\\") // Escape backslashes first
+    .replace(/%/g, "\\%")   // Escape percent signs
+    .replace(/_/g, "\\_");  // Escape underscores
+}
+
 // Search (basic - for more sophisticated search, we'd add FTS5)
 export function searchEntries(query: string, limit = 20): Entry[] {
   const stmt = db.prepare(`
     SELECT * FROM entries
-    WHERE transcript LIKE ? OR title LIKE ?
+    WHERE transcript LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\'
     ORDER BY created_at DESC
     LIMIT ?
   `);
-  const pattern = `%${query}%`;
+  const pattern = `%${escapeLikePattern(query)}%`;
   return stmt.all(pattern, pattern, limit) as Entry[];
 }
