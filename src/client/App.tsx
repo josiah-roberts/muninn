@@ -7,14 +7,12 @@ import { DataSafetyIndicator } from './components/DataSafetyIndicator/DataSafety
 import { EntryList } from './components/EntryList/EntryList.tsx';
 import { EntryModal } from './components/EntryModal/EntryModal.tsx';
 import { useEntries } from './hooks/useEntries.ts';
-import { useRecording } from './hooks/useRecording.ts';
 import styles from './App.module.css';
 
 export function App() {
   const appEl = document.getElementById('app');
   const userEmail = appEl?.dataset.userEmail || '';
   const { loadEntries, loadInterviewQuestions } = useEntries();
-  useRecording();
 
   useEffect(() => {
     loadEntries();
