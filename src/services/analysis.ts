@@ -3,7 +3,7 @@ import { config } from "../config.ts";
 import { type Entry, type Tag } from "./db.ts";
 import { getEntryTags, listEntries, getEntry } from "./storage.ts";
 import { withRetry } from "./retry.ts";
-import { analyzeEntryWithAgent, type AgentAnalysisResult } from "../agent/analyzer.ts";
+import { analyzeEntryWithAgent, type AgentAnalysisResult, type AgentTrajectory } from "../agent/analyzer.ts";
 
 // Timeout for Claude API requests (120 seconds - analysis can be complex)
 const CLAUDE_TIMEOUT_MS = 120_000;
@@ -40,23 +40,39 @@ export interface AnalysisResultWithRelated extends AnalysisResult {
 
 // Store the last analysis result to pass related entries to findRelatedEntries
 let lastAgentAnalysis: AgentAnalysisResult | null = null;
+let lastAgentTrajectory: AgentTrajectory | null = null;
+
+export interface AnalysisWithTrajectory {
+  analysis: AnalysisResult;
+  trajectory: AgentTrajectory;
+}
 
 /**
  * Analyze a transcript using the agent-based approach.
  * The agent will search and fetch related entries to build context.
+ * Returns both the analysis and the full agent trajectory.
  */
 export async function analyzeTranscript(
   transcript: string,
   existingTags: Tag[] = []
-): Promise<AnalysisResult> {
-  const result = await analyzeEntryWithAgent(transcript, existingTags);
+): Promise<AnalysisWithTrajectory> {
+  const { analysis: fullAnalysis, trajectory } = await analyzeEntryWithAgent(transcript, existingTags);
 
   // Store full result for findRelatedEntries to use
-  lastAgentAnalysis = result;
+  lastAgentAnalysis = fullAnalysis;
+  lastAgentTrajectory = trajectory;
 
-  // Return the standard AnalysisResult (without related_entries)
-  const { related_entries, ...analysis } = result;
-  return analysis;
+  // Return the standard AnalysisResult (without related_entries) plus trajectory
+  const { related_entries, ...analysis } = fullAnalysis;
+  return { analysis, trajectory };
+}
+
+/**
+ * Get the trajectory from the last analysis.
+ * Must be called after analyzeTranscript for the same entry.
+ */
+export function getLastTrajectory(): AgentTrajectory | null {
+  return lastAgentTrajectory;
 }
 
 /**

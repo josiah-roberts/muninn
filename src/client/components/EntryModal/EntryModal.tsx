@@ -2,6 +2,7 @@ import { useEffect } from 'preact/hooks';
 import { isModalOpen, selectedEntry } from '../../store/index.ts';
 import { useEntries } from '../../hooks/useEntries.ts';
 import { Tag } from '../Tag/Tag.tsx';
+import { TrajectoryViewer } from '../TrajectoryViewer/TrajectoryViewer.tsx';
 import type { Analysis } from '../../types/index.ts';
 import styles from './EntryModal.module.css';
 
@@ -83,6 +84,14 @@ export function EntryModal() {
                 Analyze
               </button>
             )}
+            {entry.status === 'analyzed' && (
+              <button
+                class={styles.btn}
+                onClick={() => analyzeEntry(entry.id)}
+              >
+                Re-analyze
+              </button>
+            )}
             <button
               class={`${styles.btn} ${styles.danger}`}
               onClick={() => deleteEntry(entry.id)}
@@ -127,6 +136,10 @@ export function EntryModal() {
                 ))}
               </div>
             </div>
+          )}
+
+          {entry.agent_trajectory && (
+            <TrajectoryViewer trajectoryJson={entry.agent_trajectory} />
           )}
         </div>
       </div>

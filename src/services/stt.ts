@@ -1,8 +1,8 @@
 import { config } from "../config.ts";
 import { withRetry, fetchWithTimeout } from "./retry.ts";
 
-// Timeout for STT requests (60 seconds - audio transcription can take time)
-const STT_TIMEOUT_MS = 60_000;
+// Timeout for STT requests (3 minutes - longer recordings need more processing time)
+const STT_TIMEOUT_MS = 180_000;
 
 export interface TranscriptionResult {
   text: string;

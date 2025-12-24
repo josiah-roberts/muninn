@@ -15,6 +15,9 @@ import {
   linkEntries,
   getLinkedEntries,
   searchEntries,
+  getCache,
+  setCache,
+  getHeadAnalyzedEntry,
 } from "../services/storage.ts";
 import { withTransaction } from "../services/db.ts";
 import { getSTTProvider } from "../services/stt.ts";
@@ -140,7 +143,7 @@ api.post("/entries", async (c) => {
     const audioPath = saveAudioFile(entry.id, buffer, ext);
     const updated = updateEntry(entry.id, { audio_path: audioPath });
 
-    return c.json(updated, 201);
+    return c.json({ ...updated, tags: [] }, 201);
   }
 
   // Handle JSON body (for creating text-only entries)
@@ -154,7 +157,8 @@ api.post("/entries", async (c) => {
     });
   }
 
-  return c.json(getEntry(entry.id), 201);
+  const finalEntry = getEntry(entry.id);
+  return c.json({ ...finalEntry, tags: [] }, 201);
 });
 
 // Upload audio chunk (for chunked uploads)
@@ -252,7 +256,9 @@ api.post("/entries/:id/transcribe", aiRateLimit, async (c) => {
       status: "transcribed",
     });
 
-    return c.json(updated);
+    // Include tags (likely empty at this stage, but keeps API consistent)
+    const tags = getEntryTags(id);
+    return c.json({ ...updated, tags: tags.map(t => t.name) });
   } catch (error) {
     console.error("Transcription error:", error);
     // Log full error server-side, return generic message to client
@@ -277,7 +283,7 @@ api.post("/entries/:id/analyze", aiRateLimit, async (c) => {
     const existingTags = getAllTags();
 
     // External API calls happen outside the transaction (they're slow and don't touch DB)
-    const analysis = await analyzeTranscript(entry.transcript, existingTags);
+    const { analysis, trajectory } = await analyzeTranscript(entry.transcript, existingTags);
     const related = await findRelatedEntries(entry, analysis);
 
     // Wrap all DB operations in a transaction for atomicity
@@ -293,17 +299,22 @@ api.post("/entries/:id/analyze", aiRateLimit, async (c) => {
         linkEntries(id, relatedEntry.id, reason);
       }
 
-      // Update entry with analysis data
+      // Update entry with analysis data including trajectory
       return updateEntry(id, {
         title: analysis.title,
         analysis_json: JSON.stringify(analysis),
         follow_up_questions: JSON.stringify(analysis.follow_up_questions),
+        agent_trajectory: JSON.stringify(trajectory),
         status: "analyzed",
       });
     });
 
+    // Get tags for the response
+    const tags = getEntryTags(id);
+
     return c.json({
       ...updated,
+      tags: tags.map(t => t.name),
       analysis,
       related_entries: related.map(r => ({
         id: r.entry.id,
@@ -420,10 +431,26 @@ api.get("/search", async (c) => {
   return c.json({ entries });
 });
 
-// Interview questions
+// Interview questions (cached based on HEAD analyzed entry)
 api.get("/interview-questions", async (c) => {
+  const headEntry = getHeadAnalyzedEntry();
+  const headEntryId = headEntry?.id || null;
+
+  // Check cache - only valid if HEAD entry hasn't changed
+  const cached = getCache<string[]>("interview_questions", headEntryId || undefined);
+  if (cached) {
+    return c.json({ questions: cached });
+  }
+
+  // Generate new questions
   const recentEntries = listEntries({ limit: 10, status: "analyzed" });
   const questions = await generateInterviewQuestions(recentEntries);
+
+  // Cache with dependency on HEAD entry
+  if (headEntryId) {
+    setCache("interview_questions", questions, headEntryId);
+  }
+
   return c.json({ questions });
 });
 

@@ -25,7 +25,8 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'pending_transcription',
     -- pending_transcription, transcribed, analyzed
     analysis_json TEXT,
-    follow_up_questions TEXT -- JSON array of follow-up questions from Claude
+    follow_up_questions TEXT, -- JSON array of follow-up questions from Claude
+    agent_trajectory TEXT -- JSON of agent conversation for debugging/review
   );
 
   CREATE TABLE IF NOT EXISTS tags (
@@ -59,7 +60,22 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_entries_status ON entries(status);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
   CREATE INDEX IF NOT EXISTS idx_entry_tags_tag_id ON entry_tags(tag_id);
+
+  -- Cache for expensive computed values (e.g., interview questions)
+  CREATE TABLE IF NOT EXISTS cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    depends_on TEXT, -- ID of entity this cache depends on (e.g., HEAD entry ID)
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
+
+// Migration: Add agent_trajectory column if it doesn't exist
+try {
+  db.exec("ALTER TABLE entries ADD COLUMN agent_trajectory TEXT");
+} catch {
+  // Column already exists, ignore
+}
 
 export type EntryStatus = "pending_transcription" | "transcribed" | "analyzed";
 
@@ -74,6 +90,7 @@ export interface Entry {
   status: EntryStatus;
   analysis_json: string | null;
   follow_up_questions: string | null;
+  agent_trajectory: string | null;
 }
 
 export interface Tag {
