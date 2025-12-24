@@ -184,7 +184,7 @@ export function getAuthRoutes() {
         setCookie(c, "session", signedSessionId, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: "Strict", // Strict for CSRF protection
+          sameSite: "Lax", // Lax allows OAuth redirects while still protecting against CSRF
           maxAge: 30 * 24 * 60 * 60, // 30 days
           path: "/",
         });

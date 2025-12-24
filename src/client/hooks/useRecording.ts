@@ -24,11 +24,7 @@ export function useRecording() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 44100,
-        }
+        audio: true,  // Simple constraint - let browser pick best settings
       });
 
       streamRef.current = stream;
@@ -64,7 +60,8 @@ export function useRecording() {
 
     } catch (err) {
       console.error('Failed to start recording:', err);
-      statusText.value = 'Microphone access denied';
+      const error = err as Error;
+      statusText.value = `Mic error: ${error.name || 'unknown'}`;
     }
   };
 

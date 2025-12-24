@@ -27,3 +27,4 @@ logs/
 
 # Build
 dist/
+certs/
