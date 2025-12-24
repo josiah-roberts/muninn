@@ -104,51 +104,74 @@ export function useRecording() {
       return;
     }
 
-    updateDataSafety('pending', 'Uploading...');
+    const mimeType = mediaRecorder?.mimeType || 'audio/webm';
+    const blob = new Blob(chunks, { type: mimeType });
 
-    const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
-    audioChunksRef.current = []; // Clear to free memory
+    // Retry logic with exponential backoff
+    const maxRetries = 3;
+    let lastError: Error | null = null;
 
-    try {
-      let currentEntry = await createEntry(blob, mediaRecorder?.mimeType || 'audio/webm');
-
-      // Add entry to list immediately
-      entries.value = [currentEntry, ...entries.value];
-
-      updateDataSafety('safe', 'Audio saved');
-      statusText.value = 'Transcribing...';
-
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        currentEntry = await transcribeEntry(currentEntry.id);
-        // Update entry in-place
-        entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
+        if (attempt > 0) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+          statusText.value = `Retry ${attempt}/${maxRetries - 1}...`;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
 
-        statusText.value = 'Analyzing...';
+        updateDataSafety('pending', 'Uploading...');
+        statusText.value = 'Uploading...';
+
+        let currentEntry = await createEntry(blob, mimeType);
+
+        // Upload succeeded - now safe to clear chunks
+        audioChunksRef.current = [];
+
+        // Add entry to list immediately
+        entries.value = [currentEntry, ...entries.value];
+
+        updateDataSafety('safe', 'Audio saved');
+        statusText.value = 'Transcribing...';
 
         try {
-          currentEntry = await analyzeEntry(currentEntry.id);
-          // Update entry in-place with analysis data
+          currentEntry = await transcribeEntry(currentEntry.id);
+          // Update entry in-place
           entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
-          statusText.value = 'Entry saved and analyzed!';
+
+          statusText.value = 'Analyzing...';
+
+          try {
+            currentEntry = await analyzeEntry(currentEntry.id);
+            // Update entry in-place with analysis data
+            entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
+            statusText.value = 'Entry saved and analyzed!';
+          } catch (err) {
+            console.error('Analysis failed:', err);
+            statusText.value = 'Entry saved (analysis pending)';
+          }
         } catch (err) {
-          console.error('Analysis failed:', err);
-          statusText.value = 'Entry saved (analysis pending)';
+          console.error('Transcription failed:', err);
+          statusText.value = 'Entry saved (transcription pending)';
         }
+
+        setTimeout(() => {
+          statusText.value = 'Tap to start recording';
+          dataSafetyStatus.value = 'hidden';
+        }, 3000);
+
+        return; // Success, exit retry loop
+
       } catch (err) {
-        console.error('Transcription failed:', err);
-        statusText.value = 'Entry saved (transcription pending)';
+        lastError = err as Error;
+        console.error(`Upload attempt ${attempt + 1} failed:`, err);
       }
-
-      setTimeout(() => {
-        statusText.value = 'Tap to start recording';
-        dataSafetyStatus.value = 'hidden';
-      }, 3000);
-
-    } catch (err) {
-      console.error('Upload error:', err);
-      updateDataSafety('pending', 'Upload failed - retrying...');
-      statusText.value = 'Upload failed';
     }
+
+    // All retries failed
+    console.error('All upload attempts failed:', lastError);
+    updateDataSafety('pending', 'Upload failed - audio preserved');
+    statusText.value = `Upload failed: ${lastError?.message || 'unknown error'}`;
+    // Note: audioChunksRef still has the data, could add manual retry button
   };
 
   const toggleRecording = () => {

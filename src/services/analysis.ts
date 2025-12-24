@@ -53,10 +53,11 @@ export interface AnalysisWithTrajectory {
  * Returns both the analysis and the full agent trajectory.
  */
 export async function analyzeTranscript(
+  entryId: string,
   transcript: string,
   existingTags: Tag[] = []
 ): Promise<AnalysisWithTrajectory> {
-  const { analysis: fullAnalysis, trajectory } = await analyzeEntryWithAgent(transcript, existingTags);
+  const { analysis: fullAnalysis, trajectory } = await analyzeEntryWithAgent(entryId, transcript, existingTags);
 
   // Store full result for findRelatedEntries to use
   lastAgentAnalysis = fullAnalysis;

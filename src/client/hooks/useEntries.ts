@@ -1,5 +1,5 @@
 import { entries, entriesLoading, interviewQuestions, selectedEntryId, isModalOpen } from '../store/index.ts';
-import { fetchEntries, fetchEntry, fetchInterviewQuestions, transcribeEntry as apiTranscribe, analyzeEntry as apiAnalyze, deleteEntry as apiDelete } from '../api/client.ts';
+import { fetchEntries, fetchEntry, fetchInterviewQuestions, transcribeEntry as apiTranscribe, retranscribeEntry as apiRetranscribe, analyzeEntry as apiAnalyze, deleteEntry as apiDelete } from '../api/client.ts';
 import type { Entry } from '../types/index.ts';
 
 export function useEntries() {
@@ -52,6 +52,16 @@ export function useEntries() {
     }
   };
 
+  const retranscribeEntry = async (id: string) => {
+    try {
+      await apiRetranscribe(id);
+      await loadEntries();
+      await openEntry(id);
+    } catch (err) {
+      console.error('Re-transcription failed:', err);
+    }
+  };
+
   const analyzeEntry = async (id: string) => {
     try {
       await apiAnalyze(id);
@@ -79,6 +89,7 @@ export function useEntries() {
     openEntry,
     closeModal,
     transcribeEntry,
+    retranscribeEntry,
     analyzeEntry,
     deleteEntry,
   };

@@ -3,6 +3,7 @@ import type { AnalysisResult } from "../services/analysis.ts";
 import type { Tag } from "../services/db.ts";
 import { config } from "../config.ts";
 import { resolve } from "path";
+import { createJournalTools } from "./tools.ts";
 
 // Trajectory captures the full agent conversation for debugging/review
 export interface AgentTrajectory {
@@ -42,21 +43,21 @@ These entries are transcribed from spoken audio, not written text. This matters 
 Your job is to analyze new journal entries by:
 
 1. First understanding the content, themes, and emotions in the new entry
-2. Using Grep to search for related past entries by keywords, themes, or phrases
-3. Using Read to fetch full content of potentially related entries
+2. Using search_entries to search for related past entries by keywords, themes, or phrases
+3. Using read_entry to fetch full content of potentially related entries
 4. Identifying patterns, connections, and recurring themes across entries
 5. Providing structured analysis that helps the user understand their journaling patterns
 
-## Journal Entries Location
+## Available Tools
 
-All journal entries are stored as markdown files in: ${entriesDir}
+- **search_entries**: Search all journal entries for a keyword or phrase. The current entry is automatically excluded from results.
+- **list_entries**: List all journal entry files (excluding the current entry).
+- **read_entry**: Read the full content of a specific entry file.
 
-Each file is named with a timestamp ID (e.g., \`1766541217269-i6b2qhp7y.md\`) and contains:
+Each entry file is named with a timestamp ID (e.g., \`1766541217269-i6b2qhp7y.md\`) and contains:
 - YAML frontmatter with metadata (id, created, status, title, tags)
 - The transcript text
 - Analysis section (if previously analyzed)
-
-Use Grep to search across all entries, then Read to examine specific entries in detail.
 
 IMPORTANT: After exploring related entries, you MUST respond with a JSON analysis in exactly this format:
 {
@@ -91,6 +92,7 @@ export interface AnalysisWithTrajectory {
  * Returns both the analysis result and the full agent trajectory for review.
  */
 export async function analyzeEntryWithAgent(
+  entryId: string,
   transcript: string,
   existingTags: Tag[] = []
 ): Promise<AnalysisWithTrajectory> {
@@ -101,8 +103,8 @@ export async function analyzeEntryWithAgent(
 ## Instructions
 
 1. First, read and understand the new transcript below
-2. Use Grep to search for related entries in ${ENTRIES_DIR}/ - search for key themes, names, topics mentioned
-3. Use Read to examine any potentially related entries you find
+2. Use search_entries to find related past entries - search for key themes, names, topics mentioned
+3. Use read_entry to examine any potentially related entries you find
 4. Consider connections, patterns, and recurring themes
 5. Respond with ONLY the JSON analysis object (no other text)
 
@@ -119,26 +121,28 @@ ${transcript}
   const messages: SDKMessage[] = [];
   const startTime = Date.now();
 
+  // Create MCP tools that filter out the current entry
+  const journalTools = createJournalTools(entryId);
+
   const response = query({
     prompt,
     options: {
       model: "claude-opus-4-5-20251101",
-      maxTurns: 10,
-      systemPrompt: {
-        type: "preset",
-        preset: "claude_code",
-        append: getAnalysisSystemPrompt(ENTRIES_DIR),
-      },
-      // Enable file tools for searching journal entries
+      maxTurns: 25,
+      systemPrompt: getAnalysisSystemPrompt(ENTRIES_DIR),
+      // Use custom MCP tools that filter out current entry
+      mcpServers: { "journal-tools": journalTools },
       allowedTools: [
-        "Grep",
-        "Glob",
-        "Read",
+        "mcp__journal-tools__search_entries",
+        "mcp__journal-tools__list_entries",
+        "mcp__journal-tools__read_entry",
       ],
       permissionMode: "bypassPermissions",
-      allowDangerouslySkipPermissions: true,
-      // Only enable file tools - disable Bash, Write, etc.
-      tools: ["Grep", "Glob", "Read"],
+      tools: [
+        "mcp__journal-tools__search_entries",
+        "mcp__journal-tools__list_entries",
+        "mcp__journal-tools__read_entry",
+      ],
       // Enable extended thinking for better analysis
       maxThinkingTokens: 10000,
     },
@@ -155,7 +159,11 @@ ${transcript}
         totalCostUsd = message.total_cost_usd;
         console.log(`Agent analysis completed in ${message.num_turns} turns, cost: $${message.total_cost_usd.toFixed(4)}`);
       } else {
-        const errorMsg = "errors" in message ? message.errors.join(", ") : "Unknown error";
+        // Log full error details
+        console.error("[Agent] Result error:", JSON.stringify(message, null, 2));
+        const errorMsg = "errors" in message && Array.isArray(message.errors) && message.errors.length > 0
+          ? message.errors.join(", ")
+          : `subtype=${message.subtype}, full message logged above`;
         throw new Error(`Agent analysis failed: ${errorMsg}`);
       }
     }

@@ -7,7 +7,7 @@ import type { Analysis } from '../../types/index.ts';
 import styles from './EntryModal.module.css';
 
 export function EntryModal() {
-  const { closeModal, transcribeEntry, analyzeEntry, deleteEntry } = useEntries();
+  const { closeModal, transcribeEntry, retranscribeEntry, analyzeEntry, deleteEntry } = useEntries();
   const open = isModalOpen.value;
   const entry = selectedEntry.value;
 
@@ -90,6 +90,14 @@ export function EntryModal() {
                 onClick={() => analyzeEntry(entry.id)}
               >
                 Re-analyze
+              </button>
+            )}
+            {entry.audio_path && entry.status !== 'pending_transcription' && (
+              <button
+                class={styles.btn}
+                onClick={() => retranscribeEntry(entry.id)}
+              >
+                Re-transcribe
               </button>
             )}
             <button
