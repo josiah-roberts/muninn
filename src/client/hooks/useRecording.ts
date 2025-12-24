@@ -9,12 +9,29 @@ import {
   entries,
 } from '../store/index.ts';
 import { createEntry, transcribeEntry, analyzeEntry } from '../api/client.ts';
-import { fetchEntries } from '../api/client.ts';
 
 export function useRecording() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  const acquireWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      } catch (err) {
+        console.warn('Wake lock request failed:', err);
+      }
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
+  };
 
   const updateDataSafety = (status: 'safe' | 'pending' | 'hidden', text: string) => {
     dataSafetyStatus.value = status;
@@ -58,6 +75,9 @@ export function useRecording() {
       elapsedSeconds.value = 0;
       statusText.value = 'Recording...';
 
+      // Prevent screen from sleeping during recording
+      acquireWakeLock();
+
     } catch (err) {
       console.error('Failed to start recording:', err);
       const error = err as Error;
@@ -72,6 +92,7 @@ export function useRecording() {
     }
     isRecording.value = false;
     statusText.value = 'Uploading...';
+    releaseWakeLock();
   };
 
   const uploadRecording = async () => {
@@ -89,17 +110,25 @@ export function useRecording() {
     audioChunksRef.current = []; // Clear to free memory
 
     try {
-      const entry = await createEntry(blob, mediaRecorder?.mimeType || 'audio/webm');
+      let currentEntry = await createEntry(blob, mediaRecorder?.mimeType || 'audio/webm');
+
+      // Add entry to list immediately
+      entries.value = [currentEntry, ...entries.value];
 
       updateDataSafety('safe', 'Audio saved');
       statusText.value = 'Transcribing...';
 
       try {
-        await transcribeEntry(entry.id);
+        currentEntry = await transcribeEntry(currentEntry.id);
+        // Update entry in-place
+        entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
+
         statusText.value = 'Analyzing...';
 
         try {
-          await analyzeEntry(entry.id);
+          currentEntry = await analyzeEntry(currentEntry.id);
+          // Update entry in-place with analysis data
+          entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
           statusText.value = 'Entry saved and analyzed!';
         } catch (err) {
           console.error('Analysis failed:', err);
@@ -109,10 +138,6 @@ export function useRecording() {
         console.error('Transcription failed:', err);
         statusText.value = 'Entry saved (transcription pending)';
       }
-
-      // Reload entries
-      const data = await fetchEntries(20);
-      entries.value = data.entries;
 
       setTimeout(() => {
         statusText.value = 'Tap to start recording';
@@ -138,6 +163,7 @@ export function useRecording() {
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop());
+      releaseWakeLock();
     };
   }, []);
 

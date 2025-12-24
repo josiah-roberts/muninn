@@ -9,9 +9,35 @@ export interface Entry {
   status: EntryStatus;
   analysis_json: string | null;
   follow_up_questions: string | null;
+  agent_trajectory: string | null;
   created_at: string;
   updated_at: string;
   tags: string[];
+}
+
+// Agent trajectory types
+export interface TrajectoryMessage {
+  type: 'system' | 'assistant' | 'user' | 'result';
+  subtype?: string;
+  message?: {
+    content: Array<{
+      type: string;
+      name?: string;
+      text?: string;
+      input?: Record<string, unknown>;
+      content?: string;
+      tool_use_id?: string;
+    }>;
+  };
+  [key: string]: unknown;
+}
+
+export interface AgentTrajectory {
+  prompt: string;
+  messages: TrajectoryMessage[];
+  numTurns: number;
+  totalCostUsd: number;
+  durationMs: number;
 }
 
 export interface LinkedEntry {

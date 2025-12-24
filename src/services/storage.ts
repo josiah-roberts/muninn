@@ -54,7 +54,7 @@ export function listEntries(options: {
 
 export function updateEntry(id: string, updates: Partial<Pick<Entry,
   'title' | 'transcript' | 'audio_path' | 'audio_duration_seconds' |
-  'status' | 'analysis_json' | 'follow_up_questions'
+  'status' | 'analysis_json' | 'follow_up_questions' | 'agent_trajectory'
 >>): Entry | null {
   const entry = getEntry(id);
   if (!entry) return null;
@@ -243,7 +243,56 @@ export function saveAudioFile(id: string, data: Buffer, extension: string): stri
     // Audio file save is critical - rethrow with context
     throw new Error(`Failed to save audio file to ${filepath}: ${error}`);
   }
+
+  // Fix WebM metadata for proper seeking (async, non-blocking)
+  if (extension === "webm") {
+    fixWebmMetadata(filepath).catch(err => {
+      console.warn(`Failed to fix WebM metadata for ${filepath}:`, err);
+    });
+  }
+
   return filepath;
+}
+
+/**
+ * Remux WebM file to fix duration metadata for proper seeking.
+ * MediaRecorder creates WebM files without proper duration info.
+ */
+async function fixWebmMetadata(filepath: string): Promise<void> {
+  const { spawn } = await import("child_process");
+  const tempPath = filepath + ".tmp";
+
+  return new Promise((resolve, reject) => {
+    // Remux the file (copy streams) to fix metadata
+    const ffmpeg = spawn("ffmpeg", [
+      "-y",           // Overwrite output
+      "-i", filepath, // Input file
+      "-c", "copy",   // Copy streams without re-encoding
+      tempPath,       // Output to temp file
+    ], { stdio: "pipe" });
+
+    ffmpeg.on("close", async (code) => {
+      if (code === 0) {
+        try {
+          // Replace original with fixed version
+          const { renameSync } = await import("fs");
+          renameSync(tempPath, filepath);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      } else {
+        // Clean up temp file on failure
+        try {
+          const { unlinkSync } = await import("fs");
+          unlinkSync(tempPath);
+        } catch { /* ignore */ }
+        reject(new Error(`ffmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on("error", reject);
+  });
 }
 
 export function getAudioFilePath(id: string): string | null {
@@ -269,4 +318,53 @@ export function searchEntries(query: string, limit = 20): Entry[] {
   `);
   const pattern = `%${escapeLikePattern(query)}%`;
   return stmt.all(pattern, pattern, limit) as Entry[];
+}
+
+// Cache helpers
+interface CacheEntry {
+  key: string;
+  value: string;
+  depends_on: string | null;
+  created_at: string;
+}
+
+export function getCache<T>(key: string, dependsOn?: string): T | null {
+  const stmt = db.prepare("SELECT * FROM cache WHERE key = ?");
+  const cached = stmt.get(key) as CacheEntry | null;
+
+  if (!cached) return null;
+
+  // If dependsOn is provided, check if it matches
+  if (dependsOn !== undefined && cached.depends_on !== dependsOn) {
+    return null; // Cache invalidated due to dependency change
+  }
+
+  try {
+    return JSON.parse(cached.value) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function setCache<T>(key: string, value: T, dependsOn?: string): void {
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO cache (key, value, depends_on, created_at)
+    VALUES (?, ?, ?, datetime('now'))
+  `);
+  stmt.run(key, JSON.stringify(value), dependsOn || null);
+}
+
+export function invalidateCache(key: string): void {
+  db.prepare("DELETE FROM cache WHERE key = ?").run(key);
+}
+
+// Get the most recent analyzed entry (HEAD)
+export function getHeadAnalyzedEntry(): Entry | null {
+  const stmt = db.prepare(`
+    SELECT * FROM entries
+    WHERE status = 'analyzed'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `);
+  return stmt.get() as Entry | null;
 }
