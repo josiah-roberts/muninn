@@ -23,13 +23,31 @@ export async function createEntry(audio: Blob, mimeType: string): Promise<Entry>
   const file = new File([audio], `recording.${ext}`, { type: mimeType });
   formData.append('audio', file);
 
-  const res = await fetch('/api/entries', {
-    method: 'POST',
-    body: formData,
-  });
+  // Use AbortController for timeout (60 second timeout for upload)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60_000);
 
-  if (!res.ok) throw new Error('Upload failed');
-  return res.json();
+  try {
+    const res = await fetch('/api/entries', {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Upload failed: ${res.status} ${text}`);
+    }
+    return res.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Upload timed out');
+    }
+    throw err;
+  }
 }
 
 export async function transcribeEntry(id: string): Promise<Entry> {
@@ -37,6 +55,14 @@ export async function transcribeEntry(id: string): Promise<Entry> {
     method: 'POST',
   });
   if (!res.ok) throw new Error('Transcription failed');
+  return res.json();
+}
+
+export async function retranscribeEntry(id: string): Promise<Entry> {
+  const res = await fetch(`/api/entries/${id}/retranscribe`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Re-transcription failed');
   return res.json();
 }
 

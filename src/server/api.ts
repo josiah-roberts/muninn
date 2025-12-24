@@ -248,7 +248,14 @@ api.post("/entries/:id/transcribe", aiRateLimit, async (c) => {
       : "audio/webm";
 
     const stt = getSTTProvider();
+    const startTime = Date.now();
     const result = await stt.transcribe(audioData, mimeType);
+    const transcribeSeconds = (Date.now() - startTime) / 1000;
+
+    // Log timing metrics
+    const audioSeconds = result.duration || 0;
+    const speedRatio = audioSeconds > 0 ? (audioSeconds / transcribeSeconds).toFixed(2) : "N/A";
+    console.log(`[Transcribe] entry=${id} audio=${audioSeconds.toFixed(1)}s transcribe=${transcribeSeconds.toFixed(1)}s ratio=${speedRatio}x`);
 
     const updated = updateEntry(id, {
       transcript: result.text,
@@ -263,6 +270,68 @@ api.post("/entries/:id/transcribe", aiRateLimit, async (c) => {
     console.error("Transcription error:", error);
     // Log full error server-side, return generic message to client
     return c.json({ error: "Transcription failed" }, 500);
+  }
+});
+
+// Re-transcribe entry (clears existing transcript + analysis, re-transcribes from audio)
+api.post("/entries/:id/retranscribe", aiRateLimit, async (c) => {
+  const id = c.req.param("id");
+  const entry = getEntry(id);
+
+  if (!entry) {
+    return c.json({ error: "Entry not found" }, 404);
+  }
+
+  if (!entry.audio_path) {
+    return c.json({ error: "No audio file for this entry" }, 400);
+  }
+
+  try {
+    // Clear existing tags first
+    const existingTags = getEntryTags(id);
+    for (const tag of existingTags) {
+      removeTagFromEntry(id, tag.name);
+    }
+
+    // Clear transcript and analysis
+    updateEntry(id, {
+      title: null,
+      transcript: null,
+      analysis_json: null,
+      follow_up_questions: null,
+      agent_trajectory: null,
+      status: "pending_transcription",
+    });
+
+    // Re-transcribe
+    const { readFileSync } = await import("fs");
+    const audioData = readFileSync(entry.audio_path);
+
+    const mimeType = entry.audio_path.endsWith(".webm") ? "audio/webm"
+      : entry.audio_path.endsWith(".ogg") ? "audio/ogg"
+      : entry.audio_path.endsWith(".mp3") ? "audio/mp3"
+      : "audio/webm";
+
+    const stt = getSTTProvider();
+    const startTime = Date.now();
+    const result = await stt.transcribe(audioData, mimeType);
+    const transcribeSeconds = (Date.now() - startTime) / 1000;
+
+    // Log timing metrics
+    const audioSeconds = result.duration || 0;
+    const speedRatio = audioSeconds > 0 ? (audioSeconds / transcribeSeconds).toFixed(2) : "N/A";
+    console.log(`[Re-transcribe] entry=${id} audio=${audioSeconds.toFixed(1)}s transcribe=${transcribeSeconds.toFixed(1)}s ratio=${speedRatio}x`);
+
+    const updated = updateEntry(id, {
+      transcript: result.text,
+      audio_duration_seconds: result.duration,
+      status: "transcribed",
+    });
+
+    return c.json({ ...updated, tags: [] });
+  } catch (error) {
+    console.error("Re-transcription error:", error);
+    return c.json({ error: "Re-transcription failed" }, 500);
   }
 });
 
@@ -283,7 +352,15 @@ api.post("/entries/:id/analyze", aiRateLimit, async (c) => {
     const existingTags = getAllTags();
 
     // External API calls happen outside the transaction (they're slow and don't touch DB)
-    const { analysis, trajectory } = await analyzeTranscript(entry.transcript, existingTags);
+    const startTime = Date.now();
+    const { analysis, trajectory } = await analyzeTranscript(id, entry.transcript, existingTags);
+    const analyzeSeconds = (Date.now() - startTime) / 1000;
+
+    // Log timing metrics
+    const wordCount = entry.transcript.split(/\s+/).length;
+    const wordsPerSecond = (wordCount / analyzeSeconds).toFixed(1);
+    console.log(`[Analyze] entry=${id} words=${wordCount} analyze=${analyzeSeconds.toFixed(1)}s rate=${wordsPerSecond}w/s turns=${trajectory.numTurns} cost=$${trajectory.totalCostUsd.toFixed(4)}`);
+
     const related = await findRelatedEntries(entry, analysis);
 
     // Wrap all DB operations in a transaction for atomicity
