@@ -1,0 +1,17 @@
+.status {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.status.recording {
+  color: var(--recording);
+  font-weight: 500;
+}
+
+.time {
+  font-family: monospace;
+  font-size: 1.25rem;
+  margin-top: 0.5rem;
+  text-align: center;
+}

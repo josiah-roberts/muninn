@@ -34,8 +34,8 @@ app.get("/auth/logout", authRoutes.logout);
 app.use("/api/*", requireAuth);
 app.route("/api", api);
 
-// Static files
-app.use("/assets/*", serveStatic({ root: "./src/web" }));
+// Static files (Preact build output)
+app.use("/assets/*", serveStatic({ root: "./dist/client" }));
 
 // Login page HTML
 const loginHtml = `
@@ -99,19 +99,17 @@ const loginHtml = `
 </html>
 `;
 
-// Load app HTML template
+// Load app HTML template (Preact)
 function getAppHtml(userEmail: string): string {
   try {
-    const htmlPath = join(import.meta.dir, "web", "app.html");
+    const htmlPath = join(import.meta.dir, "client", "index.html");
     let html = readFileSync(htmlPath, "utf-8");
-    // Inject user email into the page
-    html = html.replace(
-      '<span id="user-email"></span>',
-      `<span id="user-email">${userEmail}</span>`
-    );
+    // Inject user email into the page via data attribute
+    const escapedEmail = userEmail.replace(/"/g, '&quot;');
+    html = html.replace("__USER_EMAIL__", escapedEmail);
     return html;
   } catch (error) {
-    console.error("Failed to load app.html:", error);
+    console.error("Failed to load index.html:", error);
     return "<html><body>Error loading application</body></html>";
   }
 }
@@ -142,4 +140,5 @@ console.log(`Journal server starting on port ${config.port}...`);
 export default {
   port: config.port,
   fetch: app.fetch,
+  idleTimeout: 120, // 2 minutes for long transcription requests
 };

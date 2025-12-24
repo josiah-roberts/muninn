@@ -1,0 +1,24 @@
+.main {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.recordSection {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.entriesHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.entriesHeader h2 {
+  font-size: 1.125rem;
+}
