@@ -34,6 +34,7 @@ function isValidEntryId(id: string): boolean {
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 const ALLOWED_AUDIO_MIME_TYPES = [
   "audio/webm",
+  "video/webm", // Chrome MediaRecorder uses video/webm container for audio
   "audio/ogg",
   "audio/mp3",
   "audio/mpeg",

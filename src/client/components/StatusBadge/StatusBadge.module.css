@@ -1,0 +1,22 @@
+.badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.pending-transcription {
+  background: #f59e0b20;
+  color: #f59e0b;
+}
+
+.transcribed {
+  background: #3b82f620;
+  color: #3b82f6;
+}
+
+.analyzed {
+  background: #22c55e20;
+  color: #22c55e;
+}

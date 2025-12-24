@@ -1,0 +1,142 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 1rem;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+.close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1rem;
+}
+
+.body {
+  padding: 1rem;
+}
+
+.audio {
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.transcriptSection {
+  margin: 1rem 0;
+}
+
+.transcriptSection h4 {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.transcriptText {
+  background: var(--bg);
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  white-space: pre-wrap;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: var(--surface-hover);
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.primary:hover {
+  background: var(--accent-hover);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+.analysisSection {
+  margin-top: 1.5rem;
+}
+
+.analysisSection h4 {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.summary {
+  margin-bottom: 1rem;
+}
+
+.tags {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.insights {
+  margin-left: 1rem;
+  margin-bottom: 1rem;
+}
+
+.followUps {
+  background: var(--bg);
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.followUp {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.followUp:last-child {
+  border-bottom: none;
+}
