@@ -1,5 +1,5 @@
 services:
-  journal:
+  muninn:
     build:
       context: .
       target: dev
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
 
   # For production, use:
-  # journal:
+  # muninn:
   #   build:
   #     context: .
   #     target: prod

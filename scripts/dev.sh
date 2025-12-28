@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-SESSION_NAME="journal-dev"
+SESSION_NAME="muninn-dev"
 
 # Kill anything running on port 3000
 if lsof -ti:3000 &>/dev/null; then
