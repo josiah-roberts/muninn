@@ -1,4 +1,4 @@
-# Journal
+# Muninn
 
 Voice-first journaling app with AI-powered organization.
 

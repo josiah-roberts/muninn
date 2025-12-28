@@ -13,7 +13,7 @@ import type { Entry } from "../services/db.ts";
 
 // Create MCP server
 const server = new McpServer({
-  name: "journal",
+  name: "muninn",
   version: "1.0.0",
 });
 
@@ -60,7 +60,7 @@ server.resource(
       contents: [{
         uri: uri.href,
         mimeType: "text/plain",
-        text: `# Journal Entries\n\n${content}`,
+        text: `# Muninn Entries\n\n${content}`,
       }],
     };
   }
@@ -283,7 +283,7 @@ ${summary || e.transcript?.slice(0, 200) + "..."}`;
     return {
       content: [{
         type: "text",
-        text: `# Journal Timeline${start_date ? ` (from ${start_date})` : ""}${end_date ? ` (to ${end_date})` : ""}\n\n${timeline}`,
+        text: `# Muninn Timeline${start_date ? ` (from ${start_date})` : ""}${end_date ? ` (to ${end_date})` : ""}\n\n${timeline}`,
       }],
     };
   }
@@ -347,7 +347,7 @@ ${sortedPeople.map(([person, count]) => `- ${person}: ${count} mentions`).join("
 export async function startMcpServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("Journal MCP server started");
+  console.error("Muninn MCP server started");
 }
 
 // Run if executed directly

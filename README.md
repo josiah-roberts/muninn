@@ -1,4 +1,4 @@
-# Journal
+# Muninn
 
 Voice-first personal journaling app with AI-powered organization. Record audio entries, get automatic transcription and analysis, and access your memories through a MCP server for Claude.ai integration.
 
@@ -14,7 +14,7 @@ Voice-first personal journaling app with AI-powered organization. Record audio e
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Journal Service                          │
+│                     Muninn Service                           │
 ├─────────────────────────────────────────────────────────────┤
 │  Web UI (Vanilla JS)                                        │
 │  - Audio recording with chunked safety                      │

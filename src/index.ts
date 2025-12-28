@@ -44,7 +44,7 @@ const loginHtml = `
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Journal - Login</title>
+  <title>Muninn - Login</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -83,7 +83,7 @@ const loginHtml = `
 </head>
 <body>
   <div class="login-container">
-    <h1>Journal</h1>
+    <h1>Muninn</h1>
     <p>Voice-first journaling with AI-powered organization</p>
     <a href="/auth/login" class="login-btn">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -136,7 +136,7 @@ setInterval(cleanupSessions, 60 * 60 * 1000);
 
 // Start server
 const useTLS = process.env.USE_TLS === "true";
-console.log(`Journal server starting on port ${config.port}${useTLS ? " (HTTPS)" : ""}...`);
+console.log(`Muninn server starting on port ${config.port}${useTLS ? " (HTTPS)" : ""}...`);
 
 export default {
   port: config.port,
