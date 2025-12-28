@@ -1,19 +1,16 @@
-FROM oven/bun:1 AS base
+FROM oven/bun:latest
 WORKDIR /app
 
-# Install dependencies
-FROM base AS deps
-COPY package.json bun.lockb ./
-RUN bun install --frozen-lockfile
+COPY package.json ./
+COPY bun.lock ./
 
-# Development image with hot reload
-FROM base AS dev
-COPY --from=deps /app/node_modules ./node_modules
-# Source is mounted as volume for hot reload
-CMD ["bun", "--watch", "src/index.ts"]
+ENV CI=true
+RUN bun install --verbose
 
-# Production build
-FROM base AS prod
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY src ./src
+COPY tsconfig.json ./
+
+# Build client assets
+RUN bun build src/client/main.tsx --outdir=dist/client/assets --minify
+
 CMD ["bun", "src/index.ts"]
