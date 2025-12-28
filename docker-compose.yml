@@ -2,9 +2,8 @@ services:
   muninn:
     build:
       context: .
-      target: dev
-    ports:
-      - "3000:3000"
+      network: host
+    network_mode: host
     volumes:
       - ./src:/app/src:ro
       - ./data:/app/data
@@ -18,9 +17,3 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - WHISPER_URL=http://admin.akatosh.org:9000
     restart: unless-stopped
-
-  # For production, use:
-  # muninn:
-  #   build:
-  #     context: .
-  #     target: prod
