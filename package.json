@@ -10,7 +10,9 @@
     "build:client": "bun build src/client/main.tsx --outdir=dist/client/assets --minify",
     "start": "bun src/index.ts",
     "test": "bun test",
-    "db:migrate": "bun src/services/migrate.ts"
+    "db:migrate": "bun src/services/migrate.ts",
+    "docker:build": "bash scripts/docker-build.sh",
+    "docker:push": "bash scripts/docker-push.sh"
   },
   "devDependencies": {
     "@types/bun": "latest",
