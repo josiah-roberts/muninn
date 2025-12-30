@@ -1,0 +1,37 @@
+# Production docker-compose for Unraid and similar environments
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  muninn:
+    image: arkayos/muninn:latest
+    container_name: muninn
+    ports:
+      - "3000:3000"
+    volumes:
+      # Data directory - contains database, audio files, and markdown exports
+      - /mnt/user/appdata/muninn:/app/data
+      # TLS certificates (optional - uncomment if USE_TLS=true)
+      # - /mnt/user/appdata/muninn/certs:/app/certs:ro
+    environment:
+      # Required
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - WHISPER_URL=${WHISPER_URL:-http://localhost:9000}
+
+      # Optional - restrict to single user
+      - ALLOWED_EMAIL=${ALLOWED_EMAIL:-}
+
+      # OAuth callback URL (set if using custom domain)
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
+
+      # TLS (disable if using Tailscale Funnel or reverse proxy)
+      - USE_TLS=${USE_TLS:-false}
+      - TLS_CERT_PATH=${TLS_CERT_PATH:-/app/certs/server.crt}
+      - TLS_KEY_PATH=${TLS_KEY_PATH:-/app/certs/server.key}
+
+      # Internal paths (do not change)
+      - DATA_DIR=/app/data
+      - PORT=3000
+    restart: unless-stopped
