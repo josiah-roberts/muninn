@@ -42,7 +42,7 @@ export function isRetryableError(error: unknown): boolean {
   // HTTP errors - retry on 5xx, 429 (rate limit), but not other 4xx
   if (error instanceof Error) {
     const statusMatch = error.message.match(/status[:\s]+(\d{3})/i);
-    if (statusMatch) {
+    if (statusMatch && statusMatch[1]) {
       const status = parseInt(statusMatch[1], 10);
       return status >= 500 || status === 429;
     }

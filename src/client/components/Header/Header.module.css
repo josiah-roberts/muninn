@@ -10,6 +10,18 @@
   z-index: 100;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.logo {
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: currentColor;
+}
+
 .header h1 {
   font-size: 1.25rem;
   font-weight: 600;
@@ -25,4 +37,22 @@
 
 .userInfo a {
   color: var(--text-muted);
+}
+
+.settingsBtn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.settingsBtn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
 }

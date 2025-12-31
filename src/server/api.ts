@@ -18,6 +18,8 @@ import {
   getCache,
   setCache,
   getHeadAnalyzedEntry,
+  getAgentOverview,
+  setAgentOverview,
 } from "../services/storage.ts";
 import { withTransaction } from "../services/db.ts";
 import { getSTTProvider } from "../services/stt.ts";
@@ -529,6 +531,24 @@ api.get("/interview-questions", async (c) => {
   }
 
   return c.json({ questions });
+});
+
+// Settings - Agent Overview
+api.get("/settings/agent-overview", async (c) => {
+  const overview = getAgentOverview();
+  return c.json({ overview: overview || "" });
+});
+
+api.put("/settings/agent-overview", async (c) => {
+  const body = await c.req.json();
+  const overview = body.overview;
+
+  if (typeof overview !== "string") {
+    return c.json({ error: "Overview must be a string" }, 400);
+  }
+
+  setAgentOverview(overview);
+  return c.json({ success: true });
 });
 
 export { api };

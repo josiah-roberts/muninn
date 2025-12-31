@@ -17,8 +17,17 @@ export interface AgentTrajectory {
 // Get absolute path to entries directory
 const ENTRIES_DIR = resolve(config.entriesDir);
 
-// System prompt for the analysis agent - entries dir is injected at runtime
-const getAnalysisSystemPrompt = (entriesDir: string) => `You are a journal analysis assistant helping someone understand their own thoughts over time.
+// System prompt for the analysis agent - entries dir and optional overview are injected at runtime
+const getAnalysisSystemPrompt = (entriesDir: string, agentOverview?: string | null) => `You are a journal analysis assistant helping someone understand their own thoughts over time.
+${agentOverview ? `
+## User Context
+
+The following is context/instructions provided by the journal owner to help you understand them better:
+
+${agentOverview}
+
+---
+` : ""}
 
 ## Philosophical Grounding
 
@@ -81,6 +90,87 @@ export interface AgentAnalysisResult extends AnalysisResult {
   related_entries: Array<{ id: string; reason: string }>;
 }
 
+/**
+ * Log agent messages to console for debugging.
+ * Formats different message types for readability.
+ */
+function logAgentMessage(message: SDKMessage): void {
+  const prefix = "[Agent]";
+
+  switch (message.type) {
+    case "assistant":
+      // Assistant response with potential tool use
+      console.log(`${prefix} Assistant response:`);
+      for (const block of message.message.content) {
+        if (block.type === "text") {
+          console.log(`  Text: ${block.text.slice(0, 500)}${block.text.length > 500 ? "..." : ""}`);
+        } else if (block.type === "tool_use") {
+          console.log(`  Tool call: ${block.name}`);
+          console.log(`    Input: ${JSON.stringify(block.input).slice(0, 300)}`);
+        } else if (block.type === "thinking") {
+          console.log(`  Thinking: ${block.thinking.slice(0, 500)}${block.thinking.length > 500 ? "..." : ""}`);
+        }
+      }
+      break;
+
+    case "user":
+      // User message (typically tool results)
+      console.log(`${prefix} User message (tool results):`);
+      for (const block of message.message.content) {
+        if (typeof block === "string") {
+          console.log(`  Text: ${block.slice(0, 500)}${block.length > 500 ? "..." : ""}`);
+        } else if (block.type === "tool_result") {
+          const contentStr = typeof block.content === "string"
+            ? block.content
+            : JSON.stringify(block.content);
+          console.log(`  Tool result for ${block.tool_use_id}:`);
+          console.log(`    ${contentStr.slice(0, 500)}${contentStr.length > 500 ? "..." : ""}`);
+          if (block.is_error) {
+            console.log(`    (error)`);
+          }
+        }
+      }
+      break;
+
+    case "result":
+      // Final result
+      if (message.subtype === "success") {
+        console.log(`${prefix} Result: success (${message.num_turns} turns, $${message.total_cost_usd.toFixed(4)})`);
+      } else {
+        console.log(`${prefix} Result: ${message.subtype}`);
+        if ("errors" in message) {
+          console.log(`  Errors: ${JSON.stringify(message.errors)}`);
+        }
+      }
+      break;
+
+    case "system":
+      // System messages (init, preferences, etc.)
+      console.log(`${prefix} System message: ${message.subtype}`);
+      if (message.subtype === "init") {
+        console.log(`  Model: ${message.model}`);
+        console.log(`  Tools: ${message.tools?.join(", ") || "none"}`);
+        console.log(`  MCP Servers: ${message.mcp_servers?.map((s: { name: string }) => s.name).join(", ") || "none"}`);
+      }
+      if ("preferences" in message && message.preferences) {
+        const prefs = message.preferences as Record<string, unknown>;
+        console.log(`  Preferences:`);
+        if (prefs.systemPrompt) {
+          const sp = prefs.systemPrompt as string;
+          console.log(`    System prompt: ${sp.slice(0, 200)}${sp.length > 200 ? "..." : ""}`);
+        }
+        if (prefs.maxTurns) console.log(`    Max turns: ${prefs.maxTurns}`);
+        if (prefs.maxThinkingTokens) console.log(`    Max thinking tokens: ${prefs.maxThinkingTokens}`);
+      }
+      break;
+
+    default:
+      // Other message types
+      console.log(`${prefix} Message type: ${(message as SDKMessage).type}`);
+      console.log(`  ${JSON.stringify(message).slice(0, 500)}`);
+  }
+}
+
 export interface AnalysisWithTrajectory {
   analysis: AgentAnalysisResult;
   trajectory: AgentTrajectory;
@@ -94,7 +184,8 @@ export interface AnalysisWithTrajectory {
 export async function analyzeEntryWithAgent(
   entryId: string,
   transcript: string,
-  existingTags: Tag[] = []
+  existingTags: Tag[] = [],
+  agentOverview?: string | null
 ): Promise<AnalysisWithTrajectory> {
   const tagList = existingTags.map(t => t.name).join(", ");
 
@@ -124,12 +215,27 @@ ${transcript}
   // Create MCP tools that filter out the current entry
   const journalTools = createJournalTools(entryId);
 
+  // Build the system prompt
+  const systemPrompt = getAnalysisSystemPrompt(ENTRIES_DIR, agentOverview);
+
+  // Log agent configuration if debug enabled
+  if (config.debug.agentMessages) {
+    console.log("[Agent] Starting analysis query:");
+    console.log(`  Entry ID: ${entryId}`);
+    console.log(`  Has agent overview: ${!!agentOverview}`);
+    if (agentOverview) {
+      console.log(`  Agent overview: ${agentOverview.slice(0, 300)}${agentOverview.length > 300 ? "..." : ""}`);
+    }
+    console.log(`  System prompt length: ${systemPrompt.length} chars`);
+    console.log(`  System prompt preview: ${systemPrompt.slice(0, 500)}...`);
+  }
+
   const response = query({
     prompt,
     options: {
       model: "claude-opus-4-5-20251101",
       maxTurns: 25,
-      systemPrompt: getAnalysisSystemPrompt(ENTRIES_DIR),
+      systemPrompt,
       // Use custom MCP tools that filter out current entry
       mcpServers: { "journal-tools": journalTools },
       allowedTools: [
@@ -151,6 +257,11 @@ ${transcript}
   for await (const message of response) {
     // Capture all messages for trajectory
     messages.push(message);
+
+    // Debug logging for agent messages
+    if (config.debug.agentMessages) {
+      logAgentMessage(message);
+    }
 
     if (message.type === "result") {
       if (message.subtype === "success") {
