@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>muninn</Name>
+  <Repository>arkayos/muninn:latest</Repository>
+  <Registry>https://hub.docker.com/r/arkayos/muninn</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/josiah-roberts/muninn</Support>
+  <Project>https://github.com/josiah-roberts/muninn</Project>
+  <Overview>Voice-first journaling app with AI-powered organization. Record audio journal entries, get automatic transcription via Whisper, and AI-powered analysis and tagging via Claude.</Overview>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/josiah-roberts/muninn/main/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Google OAuth credentials, Anthropic API key, Whisper STT endpoint</Requires>
+  <Config Name="Web UI Port" Target="3000" Default="3000" Mode="tcp" Description="Web interface port" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Data Directory" Target="/app/data" Default="/mnt/user/appdata/muninn" Mode="rw" Description="Persistent data storage (database, audio files, markdown exports)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/muninn</Config>
+  <Config Name="Certs Directory" Target="/app/certs" Default="" Mode="ro" Description="TLS certificates directory (optional - leave empty if using Tailscale Funnel)" Type="Path" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Google Client ID" Target="GOOGLE_CLIENT_ID" Default="" Mode="" Description="Google OAuth Client ID from console.cloud.google.com" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Google Client Secret" Target="GOOGLE_CLIENT_SECRET" Default="" Mode="" Description="Google OAuth Client Secret" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Session Secret" Target="SESSION_SECRET" Default="" Mode="" Description="Random 32+ character string for session encryption" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Anthropic API Key" Target="ANTHROPIC_API_KEY" Default="" Mode="" Description="Anthropic API key for Claude analysis (sk-ant-...)" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Whisper URL" Target="WHISPER_URL" Default="http://localhost:9000" Mode="" Description="Faster-Whisper STT endpoint URL" Type="Variable" Display="always" Required="true" Mask="false">http://localhost:9000</Config>
+  <Config Name="Allowed Email" Target="ALLOWED_EMAIL" Default="" Mode="" Description="Restrict access to single Google account (optional)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Google Redirect URI" Target="GOOGLE_REDIRECT_URI" Default="" Mode="" Description="OAuth callback URL - set if using custom domain (e.g., https://journal.example.com/auth/callback)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Enable TLS" Target="USE_TLS" Default="false" Mode="" Description="Enable HTTPS (disable if using Tailscale Funnel or reverse proxy)" Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+  <Config Name="TLS Cert Path" Target="TLS_CERT_PATH" Default="/app/certs/server.crt" Mode="" Description="Path to TLS certificate (inside container)" Type="Variable" Display="advanced" Required="false" Mask="false">/app/certs/server.crt</Config>
+  <Config Name="TLS Key Path" Target="TLS_KEY_PATH" Default="/app/certs/server.key" Mode="" Description="Path to TLS private key (inside container)" Type="Variable" Display="advanced" Required="false" Mask="false">/app/certs/server.key</Config>
+  <Config Name="Data Dir (internal)" Target="DATA_DIR" Default="/app/data" Mode="" Description="Internal data directory path (do not change)" Type="Variable" Display="advanced" Required="false" Mask="false">/app/data</Config>
+</Container>
