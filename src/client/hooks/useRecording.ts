@@ -7,6 +7,7 @@ import {
   statusText,
   elapsedSeconds,
   entries,
+  showToast,
 } from '../store/index.ts';
 import { createEntry, transcribeEntry, analyzeEntry } from '../api/client.ts';
 
@@ -82,6 +83,7 @@ export function useRecording() {
       console.error('Failed to start recording:', err);
       const error = err as Error;
       statusText.value = `Mic error: ${error.name || 'unknown'}`;
+      showToast(`Failed to start recording: ${error.message || 'microphone access denied'}`);
     }
   };
 
@@ -148,10 +150,12 @@ export function useRecording() {
           } catch (err) {
             console.error('Analysis failed:', err);
             statusText.value = 'Entry saved (analysis pending)';
+            showToast('Analysis failed - you can retry from the entry');
           }
         } catch (err) {
           console.error('Transcription failed:', err);
           statusText.value = 'Entry saved (transcription pending)';
+          showToast('Transcription failed - you can retry from the entry');
         }
 
         setTimeout(() => {
@@ -171,6 +175,7 @@ export function useRecording() {
     console.error('All upload attempts failed:', lastError);
     updateDataSafety('pending', 'Upload failed - audio preserved');
     statusText.value = `Upload failed: ${lastError?.message || 'unknown error'}`;
+    showToast(`Upload failed after ${maxRetries} attempts`);
     // Note: audioChunksRef still has the data, could add manual retry button
   };
 
