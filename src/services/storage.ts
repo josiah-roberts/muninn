@@ -88,7 +88,8 @@ export function deleteEntry(id: string): boolean {
 
   // Store paths before deletion
   const audioPath = entry.audio_path;
-  const mdPath = getMarkdownPath(id);
+  const mdPath = getMarkdownPath(entry);
+  const idBasedMdPath = getIdBasedMarkdownPath(id);
 
   // Delete from database FIRST (in transaction) - this is the critical operation
   // If this fails, we haven't deleted any files yet, so data is consistent
@@ -106,11 +107,21 @@ export function deleteEntry(id: string): boolean {
     }
   }
 
+  // Delete the current markdown file (title-based or id-based)
   if (existsSync(mdPath)) {
     try {
       unlinkSync(mdPath);
     } catch (error) {
       console.error(`Failed to delete markdown file ${mdPath}:`, error);
+    }
+  }
+
+  // Also try to delete ID-based file in case it exists (for entries that were renamed)
+  if (mdPath !== idBasedMdPath && existsSync(idBasedMdPath)) {
+    try {
+      unlinkSync(idBasedMdPath);
+    } catch (error) {
+      console.error(`Failed to delete old markdown file ${idBasedMdPath}:`, error);
     }
   }
 
@@ -179,8 +190,57 @@ export function getLinkedEntries(entryId: string): Array<Entry & { relationship:
   return stmt.all(entryId, entryId) as Array<Entry & { relationship: string | null }>;
 }
 
+// Settings CRUD
+export function getSetting(key: string): string | null {
+  const stmt = db.prepare("SELECT value FROM settings WHERE key = ?");
+  const result = stmt.get(key) as { value: string } | null;
+  return result?.value || null;
+}
+
+export function setSetting(key: string, value: string): void {
+  const stmt = db.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+  `);
+  stmt.run(key, value);
+}
+
+export function getAgentOverview(): string | null {
+  return getSetting("agent_overview");
+}
+
+export function setAgentOverview(overview: string): void {
+  setSetting("agent_overview", overview);
+}
+
+// Sanitize a string for use as a filename
+function sanitizeFilename(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "") // Remove special chars except spaces and hyphens
+    .replace(/\s+/g, "-")         // Replace spaces with hyphens
+    .replace(/-+/g, "-")          // Collapse multiple hyphens
+    .replace(/^-|-$/g, "")        // Trim leading/trailing hyphens
+    .slice(0, 100);               // Limit length
+}
+
 // Markdown sync
-function getMarkdownPath(entryId: string): string {
+function getMarkdownPath(entry: Entry): string {
+  // Use title-based filename if entry has been analyzed and has a title
+  if (entry.status === "analyzed" && entry.title) {
+    const sanitized = sanitizeFilename(entry.title);
+    if (sanitized) {
+      // Format: sanitized-title--id.md (id suffix ensures uniqueness)
+      return join(config.entriesDir, `${sanitized}--${entry.id}.md`);
+    }
+  }
+  // Fallback to ID-based filename
+  return join(config.entriesDir, `${entry.id}.md`);
+}
+
+// Get the old (ID-based) markdown path for cleanup
+function getIdBasedMarkdownPath(entryId: string): string {
   return join(config.entriesDir, `${entryId}.md`);
 }
 
@@ -224,8 +284,20 @@ ${analysis ? `\n## Analysis\n\n${JSON.stringify(analysis, null, 2)}` : ""}
 ${followUps.length > 0 ? `\n## Follow-up Questions\n\n${followUps.map((q, i) => `${i + 1}. ${q}`).join("\n")}` : ""}
 `.trim() + "\n";
 
+  const newPath = getMarkdownPath(entry);
+  const oldIdPath = getIdBasedMarkdownPath(entry.id);
+
   try {
-    writeFileSync(getMarkdownPath(entry.id), content);
+    // If we're now using a title-based path, clean up the old ID-based file
+    if (newPath !== oldIdPath && existsSync(oldIdPath)) {
+      try {
+        unlinkSync(oldIdPath);
+      } catch (err) {
+        console.warn(`Failed to clean up old markdown file ${oldIdPath}:`, err);
+      }
+    }
+
+    writeFileSync(newPath, content);
   } catch (error) {
     // Log error but don't throw - markdown sync failure shouldn't break the app
     // The DB is the source of truth; markdown files are convenience exports

@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.ts";
 import { type Entry, type Tag } from "./db.ts";
-import { getEntryTags, listEntries, getEntry } from "./storage.ts";
+import { getEntryTags, listEntries, getEntry, getAgentOverview } from "./storage.ts";
 import { withRetry } from "./retry.ts";
 import { analyzeEntryWithAgent, type AgentAnalysisResult, type AgentTrajectory } from "../agent/analyzer.ts";
 
@@ -57,7 +57,10 @@ export async function analyzeTranscript(
   transcript: string,
   existingTags: Tag[] = []
 ): Promise<AnalysisWithTrajectory> {
-  const { analysis: fullAnalysis, trajectory } = await analyzeEntryWithAgent(entryId, transcript, existingTags);
+  // Fetch user-provided agent overview/context
+  const agentOverview = getAgentOverview();
+
+  const { analysis: fullAnalysis, trajectory } = await analyzeEntryWithAgent(entryId, transcript, existingTags, agentOverview);
 
   // Store full result for findRelatedEntries to use
   lastAgentAnalysis = fullAnalysis;
