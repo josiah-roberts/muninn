@@ -1,6 +1,9 @@
 FROM oven/bun:latest
 WORKDIR /app
 
+# Install Claude Code globally (required by claude-agent-sdk)
+RUN bun install -g @anthropic-ai/claude-code
+
 COPY package.json ./
 COPY bun.lock ./
 

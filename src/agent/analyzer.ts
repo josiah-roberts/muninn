@@ -230,6 +230,11 @@ ${transcript}
     console.log(`  System prompt preview: ${systemPrompt.slice(0, 500)}...`);
   }
 
+  // Capture stderr from Claude Code subprocess for debugging
+  const stderrHandler = (message: string) => {
+    console.error("[Claude Code stderr]", message);
+  };
+
   const response = query({
     prompt,
     options: {
@@ -243,7 +248,7 @@ ${transcript}
         "mcp__journal-tools__list_entries",
         "mcp__journal-tools__read_entry",
       ],
-      permissionMode: "bypassPermissions",
+      // Don't need bypassPermissions since we only allow specific MCP tools
       tools: [
         "mcp__journal-tools__search_entries",
         "mcp__journal-tools__list_entries",
@@ -251,6 +256,8 @@ ${transcript}
       ],
       // Enable extended thinking for better analysis
       maxThinkingTokens: 10000,
+      // Capture stderr for debugging
+      stderr: stderrHandler,
     },
   });
 

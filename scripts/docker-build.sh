@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-IMAGE_NAME="arkayos/munnin"
+IMAGE_NAME="arkayos/muninn"
 TAG="${1:-latest}"
 
 echo "Building Docker image: ${IMAGE_NAME}:${TAG}"
