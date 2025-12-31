@@ -95,7 +95,7 @@ class FasterWhisperProvider implements STTProvider {
       : "webm";
 
     const formData = new FormData();
-    formData.append("audio_file", new Blob([audioData], { type: mimeType }), `audio.${extension}`);
+    formData.append("audio_file", new Blob([new Uint8Array(audioData)], { type: mimeType }), `audio.${extension}`);
 
     // Retry with exponential backoff and timeout
     return withRetry(
@@ -120,7 +120,8 @@ class FasterWhisperProvider implements STTProvider {
         // Calculate duration from last segment
         let duration: number | undefined;
         if (result.segments && result.segments.length > 0) {
-          duration = result.segments[result.segments.length - 1].end;
+          const lastSegment = result.segments[result.segments.length - 1];
+          duration = lastSegment?.end;
         }
 
         // Process text with pause markers

@@ -35,4 +35,10 @@ export const config = {
 
   // Allowed Google account email (single user mode)
   allowedEmail: process.env.ALLOWED_EMAIL || "",
+
+  // Debug settings
+  debug: {
+    // Log all agent back-and-forth messages to console
+    agentMessages: process.env.DEBUG_AGENT_MESSAGES === "true",
+  },
 } as const;
