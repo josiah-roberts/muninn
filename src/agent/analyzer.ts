@@ -4,6 +4,7 @@ import type { Tag } from "../services/db.ts";
 import { config } from "../config.ts";
 import { resolve } from "path";
 import { createJournalTools } from "./tools.ts";
+import { listEntries } from "../services/storage.ts";
 
 // Trajectory captures the full agent conversation for debugging/review
 export interface AgentTrajectory {
@@ -189,6 +190,15 @@ export async function analyzeEntryWithAgent(
 ): Promise<AnalysisWithTrajectory> {
   const tagList = existingTags.map(t => t.name).join(", ");
 
+  // Fetch last 20 entries (excluding current) for context
+  const recentEntries = listEntries({ limit: 21 }) // Get 21 to account for current entry
+    .filter(e => e.id !== entryId)
+    .slice(0, 20);
+
+  const recentEntriesContext = recentEntries.length > 0
+    ? `## Recent Entries\n\nHere are the ${recentEntries.length} most recent entries for context:\n\n${recentEntries.map(e => `- **${e.title || "Untitled"}** (${e.id})`).join("\n")}\n\nUse search_entries or read_entry to explore entries that seem relevant.`
+    : "";
+
   const prompt = `Please analyze this new journal entry.
 
 ## Instructions
@@ -200,6 +210,8 @@ export async function analyzeEntryWithAgent(
 5. Respond with ONLY the JSON analysis object (no other text)
 
 ${tagList ? `## Existing Tags\nThese tags already exist in the journal (reuse when appropriate): ${tagList}` : "This is a new journal with no existing tags yet."}
+
+${recentEntriesContext}
 
 ## New Entry Transcript
 ---
