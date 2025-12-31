@@ -384,12 +384,14 @@ function escapeLikePattern(query: string): string {
 export function searchEntries(query: string, limit = 20): Entry[] {
   const stmt = db.prepare(`
     SELECT * FROM entries
-    WHERE transcript LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\'
+    WHERE transcript LIKE ? ESCAPE '\\'
+       OR title LIKE ? ESCAPE '\\'
+       OR analysis_json LIKE ? ESCAPE '\\'
     ORDER BY created_at DESC
     LIMIT ?
   `);
   const pattern = `%${escapeLikePattern(query)}%`;
-  return stmt.all(pattern, pattern, limit) as Entry[];
+  return stmt.all(pattern, pattern, pattern, limit) as Entry[];
 }
 
 // Cache helpers
