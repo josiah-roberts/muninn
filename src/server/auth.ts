@@ -34,6 +34,10 @@ export function verifyAndExtractSessionId(signedSessionId: string): string | nul
 
   const [sessionId, providedSignature] = parts;
 
+  if (!sessionId || !providedSignature) {
+    return null;
+  }
+
   const hmac = createHmac("sha256", config.sessionSecret);
   hmac.update(sessionId);
   const expectedSignature = hmac.digest("hex");

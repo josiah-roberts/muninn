@@ -67,7 +67,8 @@ function getClientKey(c: { req: { header: (name: string) => string | undefined }
   // For now, use X-Forwarded-For or fall back to a default
   const forwarded = c.req.header("x-forwarded-for");
   if (forwarded) {
-    return forwarded.split(",")[0].trim();
+    const firstIp = forwarded.split(",")[0];
+    return firstIp?.trim() || "unknown";
   }
   return c.req.header("x-real-ip") || "unknown";
 }

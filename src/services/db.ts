@@ -68,6 +68,13 @@ db.exec(`
     depends_on TEXT, -- ID of entity this cache depends on (e.g., HEAD entry ID)
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Settings for user preferences and global configuration
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migration: Add agent_trajectory column if it doesn't exist

@@ -1,4 +1,4 @@
-import { entries, entriesLoading, interviewQuestions, selectedEntryId, isModalOpen } from '../store/index.ts';
+import { entries, entriesLoading, interviewQuestions, selectedEntryId, isModalOpen, showToast } from '../store/index.ts';
 import { fetchEntries, fetchEntry, fetchInterviewQuestions, transcribeEntry as apiTranscribe, retranscribeEntry as apiRetranscribe, analyzeEntry as apiAnalyze, deleteEntry as apiDelete } from '../api/client.ts';
 import type { Entry } from '../types/index.ts';
 
@@ -10,6 +10,7 @@ export function useEntries() {
       entries.value = data.entries;
     } catch (err) {
       console.error('Failed to load entries:', err);
+      showToast('Failed to load entries');
     } finally {
       entriesLoading.value = false;
     }
@@ -21,6 +22,7 @@ export function useEntries() {
       interviewQuestions.value = data.questions || [];
     } catch (err) {
       console.error('Failed to load interview questions:', err);
+      showToast('Failed to load interview questions');
     }
   };
 
@@ -34,6 +36,7 @@ export function useEntries() {
       entries.value = entries.value.map(e => e.id === id ? entry : e);
     } catch (err) {
       console.error('Failed to load entry:', err);
+      showToast('Failed to load entry');
     }
   };
 
@@ -49,6 +52,7 @@ export function useEntries() {
       await openEntry(id);
     } catch (err) {
       console.error('Transcription failed:', err);
+      showToast('Transcription failed');
     }
   };
 
@@ -59,6 +63,7 @@ export function useEntries() {
       await openEntry(id);
     } catch (err) {
       console.error('Re-transcription failed:', err);
+      showToast('Re-transcription failed');
     }
   };
 
@@ -69,6 +74,7 @@ export function useEntries() {
       await openEntry(id);
     } catch (err) {
       console.error('Analysis failed:', err);
+      showToast('Analysis failed');
     }
   };
 
@@ -80,6 +86,7 @@ export function useEntries() {
       await loadEntries();
     } catch (err) {
       console.error('Delete failed:', err);
+      showToast('Failed to delete entry');
     }
   };
 

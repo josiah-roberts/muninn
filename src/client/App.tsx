@@ -6,6 +6,7 @@ import { RecordingStatus } from './components/RecordingStatus/RecordingStatus.ts
 import { DataSafetyIndicator } from './components/DataSafetyIndicator/DataSafetyIndicator.tsx';
 import { EntryList } from './components/EntryList/EntryList.tsx';
 import { EntryModal } from './components/EntryModal/EntryModal.tsx';
+import { ToastContainer } from './components/Toast/Toast.tsx';
 import { useEntries } from './hooks/useEntries.ts';
 import styles from './App.module.css';
 
@@ -35,6 +36,7 @@ export function App() {
         <EntryList />
       </main>
       <EntryModal />
+      <ToastContainer />
     </>
   );
 }
