@@ -11,6 +11,7 @@
     "start": "bun src/index.ts",
     "test": "bun test",
     "db:migrate": "bun src/services/migrate.ts",
+    "docker:dev": "bash scripts/docker-dev.sh",
     "docker:build": "bash scripts/docker-build.sh",
     "docker:push": "bash scripts/docker-push.sh"
   },
