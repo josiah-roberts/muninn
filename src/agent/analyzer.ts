@@ -17,8 +17,17 @@ export interface AgentTrajectory {
 // Get absolute path to entries directory
 const ENTRIES_DIR = resolve(config.entriesDir);
 
-// System prompt for the analysis agent - entries dir is injected at runtime
-const getAnalysisSystemPrompt = (entriesDir: string) => `You are a journal analysis assistant helping someone understand their own thoughts over time.
+// System prompt for the analysis agent - entries dir and optional overview are injected at runtime
+const getAnalysisSystemPrompt = (entriesDir: string, agentOverview?: string | null) => `You are a journal analysis assistant helping someone understand their own thoughts over time.
+${agentOverview ? `
+## User Context
+
+The following is context/instructions provided by the journal owner to help you understand them better:
+
+${agentOverview}
+
+---
+` : ""}
 
 ## Philosophical Grounding
 
@@ -94,7 +103,8 @@ export interface AnalysisWithTrajectory {
 export async function analyzeEntryWithAgent(
   entryId: string,
   transcript: string,
-  existingTags: Tag[] = []
+  existingTags: Tag[] = [],
+  agentOverview?: string | null
 ): Promise<AnalysisWithTrajectory> {
   const tagList = existingTags.map(t => t.name).join(", ");
 
@@ -129,7 +139,7 @@ ${transcript}
     options: {
       model: "claude-opus-4-5-20251101",
       maxTurns: 25,
-      systemPrompt: getAnalysisSystemPrompt(ENTRIES_DIR),
+      systemPrompt: getAnalysisSystemPrompt(ENTRIES_DIR, agentOverview),
       // Use custom MCP tools that filter out current entry
       mcpServers: { "journal-tools": journalTools },
       allowedTools: [
