@@ -27,3 +27,24 @@ export const selectedEntry = computed(() => {
 // Interview questions
 export const interviewQuestions = signal<string[]>([]);
 export const currentQuestionIndex = signal(0);
+
+// Toast notifications
+export interface Toast {
+  id: number;
+  message: string;
+  type: 'error' | 'success' | 'info';
+}
+let toastIdCounter = 0;
+export const toasts = signal<Toast[]>([]);
+
+export function showToast(message: string, type: Toast['type'] = 'error') {
+  const id = ++toastIdCounter;
+  toasts.value = [...toasts.value, { id, message, type }];
+  setTimeout(() => {
+    toasts.value = toasts.value.filter(t => t.id !== id);
+  }, 5000);
+}
+
+export function dismissToast(id: number) {
+  toasts.value = toasts.value.filter(t => t.id !== id);
+}

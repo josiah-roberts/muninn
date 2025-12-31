@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { showToast } from '../../store/index.ts';
 import styles from './SettingsModal.module.css';
 
 interface SettingsModalProps {
@@ -22,7 +23,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           setOverview(data.overview || '');
           setLoading(false);
         })
-        .catch(() => setLoading(false));
+        .catch((err) => {
+          console.error('Failed to load settings:', err);
+          showToast('Failed to load settings');
+          setLoading(false);
+        });
     }
   }, [isOpen]);
 
@@ -55,7 +60,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      console.error('Failed to save overview:', err);
+      console.error('Failed to save settings:', err);
+      showToast('Failed to save settings');
     } finally {
       setSaving(false);
     }
