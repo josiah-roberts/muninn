@@ -135,18 +135,17 @@ app.get("/*", requireAuth, async (c) => {
 setInterval(cleanupSessions, 60 * 60 * 1000);
 
 // Start server
-const useTLS = process.env.USE_TLS === "true";
-console.log(`Muninn server starting on port ${config.port}${useTLS ? " (HTTPS)" : ""}...`);
+console.log(`Muninn server starting on port ${config.port}${config.tls.enabled ? " (HTTPS)" : ""}...`);
 
 export default {
   port: config.port,
   hostname: "0.0.0.0", // Bind to all interfaces (accessible via Tailscale)
   fetch: app.fetch,
   idleTimeout: 120, // 2 minutes for long transcription requests
-  ...(useTLS && {
+  ...(config.tls.enabled && {
     tls: {
-      cert: Bun.file("./certs/server.crt"),
-      key: Bun.file("./certs/server.key"),
+      cert: Bun.file(config.tls.certPath),
+      key: Bun.file(config.tls.keyPath),
     },
   }),
 };

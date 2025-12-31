@@ -14,6 +14,13 @@ export const config = {
     return join(this.dataDir, "entries");
   },
 
+  // TLS configuration
+  tls: {
+    enabled: process.env.USE_TLS === "true",
+    certPath: process.env.TLS_CERT_PATH || "./certs/server.crt",
+    keyPath: process.env.TLS_KEY_PATH || "./certs/server.key",
+  },
+
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
