@@ -20,10 +20,10 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - SESSION_SECRET=${SESSION_SECRET}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - WHISPER_URL=${WHISPER_URL:-http://localhost:9000}
-      - USE_TLS=true
-      - TLS_CERT_PATH=/app/certs/server.crt
-      - TLS_KEY_PATH=/app/certs/server.key
+      - WHISPER_URL=${WHISPER_URL}
+      - USE_TLS=${USE_TLS:-false}
+      - TLS_CERT_PATH=${TLS_CERT_PATH:-/app/certs/server.crt}
+      - TLS_KEY_PATH=${TLS_KEY_PATH:-/app/certs/server.key}
     # Rebuild client assets on startup, then run with watch
     command: sh -c "bun build src/client/main.tsx --outdir=dist/client/assets && bun --watch src/index.ts"
     stdin_open: true

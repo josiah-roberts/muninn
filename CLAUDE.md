@@ -8,7 +8,7 @@ Voice-first journaling app with AI-powered organization.
 - **Framework**: Hono (web server)
 - **Database**: SQLite with WAL mode (via bun:sqlite)
 - **Auth**: Google OAuth (via Arctic library)
-- **STT**: Faster-Whisper (self-hosted at localhost:9000)
+- **STT**: Faster-Whisper (self-hosted)
 - **AI Analysis**: Claude Opus 4.5 via Anthropic API
 - **MCP Server**: Read-only access for Claude.ai integration
 
