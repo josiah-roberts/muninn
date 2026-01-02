@@ -72,7 +72,8 @@ Your job is to analyze new journal entries by:
 - **search_entries**: Search all journal entries for a keyword or phrase. The current entry is automatically excluded from results.
 - **list_entries**: List all journal entry files (excluding the current entry).
 - **read_entry**: Read the full content of a specific entry file.
-- **update_user_profile**: Update the user profile document with new insights. Use this to record important information about the user that would help future analysis sessions.
+- **write_user_profile**: Write the complete user profile document. Use for initial creation or major restructuring.
+- **edit_user_profile**: Make surgical edits to the profile (old_string → new_string). Use for incremental updates.
 
 Each entry file is named with a timestamp ID (e.g., \`1766541217269-i6b2qhp7y.md\`) and contains:
 - YAML frontmatter with metadata (id, created, status, title, tags)
@@ -93,7 +94,12 @@ Update the profile when you learn something significant about:
 
 Keep the profile concise and structured. Focus on information that provides context, not exhaustive details. If the current entry reveals something new or contradicts existing understanding, update the profile accordingly.
 
-Use the update_user_profile tool AFTER completing your JSON analysis if you've learned something worth preserving.
+**Tool usage:**
+- Use \`write_user_profile\` to create the initial profile or for major restructuring
+- Use \`edit_user_profile\` for incremental updates (adding a person, updating a theme, etc.)
+- The edit tool works like find-and-replace: provide the exact text to find and what to replace it with
+
+Update the profile AFTER completing your JSON analysis if you've learned something worth preserving.
 
 IMPORTANT: After exploring related entries, you MUST respond with a JSON analysis in exactly this format:
 {
@@ -292,14 +298,16 @@ ${transcript}
         "mcp__journal-tools__search_entries",
         "mcp__journal-tools__list_entries",
         "mcp__journal-tools__read_entry",
-        "mcp__journal-tools__update_user_profile",
+        "mcp__journal-tools__write_user_profile",
+        "mcp__journal-tools__edit_user_profile",
       ],
       // Don't need bypassPermissions since we only allow specific MCP tools
       tools: [
         "mcp__journal-tools__search_entries",
         "mcp__journal-tools__list_entries",
         "mcp__journal-tools__read_entry",
-        "mcp__journal-tools__update_user_profile",
+        "mcp__journal-tools__write_user_profile",
+        "mcp__journal-tools__edit_user_profile",
       ],
       // Enable extended thinking for better analysis
       maxThinkingTokens: 10000,
