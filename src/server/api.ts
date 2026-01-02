@@ -20,6 +20,8 @@ import {
   getHeadAnalyzedEntry,
   getAgentOverview,
   setAgentOverview,
+  getUserProfile,
+  setUserProfile,
 } from "../services/storage.ts";
 import { withTransaction } from "../services/db.ts";
 import { getSTTProvider } from "../services/stt.ts";
@@ -548,6 +550,24 @@ api.put("/settings/agent-overview", async (c) => {
   }
 
   setAgentOverview(overview);
+  return c.json({ success: true });
+});
+
+// Settings - User Profile (agent-editable document about the user)
+api.get("/settings/user-profile", async (c) => {
+  const profile = getUserProfile();
+  return c.json({ profile: profile || "" });
+});
+
+api.put("/settings/user-profile", async (c) => {
+  const body = await c.req.json();
+  const profile = body.profile;
+
+  if (typeof profile !== "string") {
+    return c.json({ error: "Profile must be a string" }, 400);
+  }
+
+  setUserProfile(profile);
   return c.json({ success: true });
 });
 

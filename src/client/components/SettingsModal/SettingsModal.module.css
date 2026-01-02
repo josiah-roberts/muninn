@@ -134,3 +134,43 @@
 .primary:hover {
   background: var(--accent-hover);
 }
+
+.expandBtn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.expandBtn:hover {
+  color: var(--text);
+}
+
+.profileContent {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.emptyProfile {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.875rem;
+}

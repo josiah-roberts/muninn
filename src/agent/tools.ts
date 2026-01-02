@@ -1,11 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { config } from "../config.ts";
+import { getUserProfilePath } from "../services/storage.ts";
 
 const ENTRIES_DIR = resolve(config.entriesDir);
+const USER_PROFILE_PATH = getUserProfilePath();
 
 interface SearchResult {
   file: string;
@@ -124,6 +126,58 @@ export function createJournalTools(currentEntryId: string) {
         return { content: [{ type: "text", text: content }] };
       } catch (err) {
         return { content: [{ type: "text", text: `Error reading file: ${err}` }] };
+      }
+    }
+  );
+
+  server.tool(
+    "write_user_profile",
+    "Write the complete user profile document. Use this to create the initial profile or when you need to completely restructure it. For smaller updates, prefer edit_user_profile instead.",
+    { content: z.string().describe("The complete content for the user profile document. Should be concise markdown.") },
+    async ({ content }) => {
+      try {
+        writeFileSync(USER_PROFILE_PATH, content, "utf-8");
+        return { content: [{ type: "text", text: "User profile written successfully." }] };
+      } catch (err) {
+        return { content: [{ type: "text", text: `Error writing user profile: ${err}` }] };
+      }
+    }
+  );
+
+  server.tool(
+    "edit_user_profile",
+    "Edit the user profile document by replacing a specific string with new content. Works like a surgical find-and-replace. The old_string must match exactly (including whitespace/indentation). Use this for incremental updates; use write_user_profile for complete rewrites or initial creation.",
+    {
+      old_string: z.string().describe("The exact text to find and replace in the profile"),
+      new_string: z.string().describe("The text to replace it with"),
+    },
+    async ({ old_string, new_string }) => {
+      try {
+        // Read current content
+        if (!existsSync(USER_PROFILE_PATH)) {
+          return { content: [{ type: "text", text: "Error: User profile does not exist yet. Use write_user_profile to create it first." }] };
+        }
+
+        const current = readFileSync(USER_PROFILE_PATH, "utf-8");
+
+        // Check if old_string exists
+        if (!current.includes(old_string)) {
+          return { content: [{ type: "text", text: `Error: Could not find the specified text in the profile. Make sure old_string matches exactly, including whitespace.` }] };
+        }
+
+        // Check for uniqueness (like the real Edit tool)
+        const occurrences = current.split(old_string).length - 1;
+        if (occurrences > 1) {
+          return { content: [{ type: "text", text: `Error: Found ${occurrences} occurrences of the text. The old_string must be unique. Include more surrounding context to make it unique.` }] };
+        }
+
+        // Perform the replacement
+        const updated = current.replace(old_string, new_string);
+        writeFileSync(USER_PROFILE_PATH, updated, "utf-8");
+
+        return { content: [{ type: "text", text: "User profile edited successfully." }] };
+      } catch (err) {
+        return { content: [{ type: "text", text: `Error editing user profile: ${err}` }] };
       }
     }
   );
