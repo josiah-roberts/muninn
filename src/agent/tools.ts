@@ -1,11 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { config } from "../config.ts";
+import { getUserProfilePath } from "../services/storage.ts";
 
 const ENTRIES_DIR = resolve(config.entriesDir);
+const USER_PROFILE_PATH = getUserProfilePath();
 
 interface SearchResult {
   file: string;
@@ -124,6 +126,20 @@ export function createJournalTools(currentEntryId: string) {
         return { content: [{ type: "text", text: content }] };
       } catch (err) {
         return { content: [{ type: "text", text: `Error reading file: ${err}` }] };
+      }
+    }
+  );
+
+  server.tool(
+    "update_user_profile",
+    "Update the user profile document with new insights about the user. This document persists across analysis sessions and helps future instantiations of the agent better understand the user. The profile should be concise and contain only information that would be useful for understanding the user's life, values, recurring themes, relationships, and patterns. IMPORTANT: This completely replaces the existing profile, so include all relevant existing information plus any updates.",
+    { content: z.string().describe("The complete new content for the user profile document. Should be concise markdown.") },
+    async ({ content }) => {
+      try {
+        writeFileSync(USER_PROFILE_PATH, content, "utf-8");
+        return { content: [{ type: "text", text: "User profile updated successfully." }] };
+      } catch (err) {
+        return { content: [{ type: "text", text: `Error updating user profile: ${err}` }] };
       }
     }
   );

@@ -1,7 +1,10 @@
 import { db, type Entry, type EntryStatus, type Tag, withTransaction } from "./db.ts";
 import { config } from "../config.ts";
-import { mkdirSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync, unlinkSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
+
+// User profile file path
+const USER_PROFILE_PATH = join(config.dataDir, "user-profile.md");
 
 // Ensure directories exist
 mkdirSync(config.audioDir, { recursive: true });
@@ -441,4 +444,30 @@ export function getHeadAnalyzedEntry(): Entry | null {
     LIMIT 1
   `);
   return stmt.get() as Entry | null;
+}
+
+// User Profile - an agent-editable document that captures learned information about the user
+export function getUserProfile(): string | null {
+  try {
+    if (existsSync(USER_PROFILE_PATH)) {
+      return readFileSync(USER_PROFILE_PATH, "utf-8");
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to read user profile:", error);
+    return null;
+  }
+}
+
+export function setUserProfile(content: string): void {
+  try {
+    writeFileSync(USER_PROFILE_PATH, content, "utf-8");
+  } catch (error) {
+    console.error("Failed to write user profile:", error);
+    throw new Error(`Failed to save user profile: ${error}`);
+  }
+}
+
+export function getUserProfilePath(): string {
+  return USER_PROFILE_PATH;
 }

@@ -4,7 +4,7 @@ import type { Tag } from "../services/db.ts";
 import { config } from "../config.ts";
 import { resolve } from "path";
 import { createJournalTools } from "./tools.ts";
-import { listEntries } from "../services/storage.ts";
+import { listEntries, getUserProfile } from "../services/storage.ts";
 
 // Trajectory captures the full agent conversation for debugging/review
 export interface AgentTrajectory {
@@ -19,9 +19,18 @@ export interface AgentTrajectory {
 const ENTRIES_DIR = resolve(config.entriesDir);
 
 // System prompt for the analysis agent - entries dir and optional overview are injected at runtime
-const getAnalysisSystemPrompt = (entriesDir: string, agentOverview?: string | null) => `You are a journal analysis assistant helping someone understand their own thoughts over time.
+const getAnalysisSystemPrompt = (entriesDir: string, agentOverview?: string | null, userProfile?: string | null) => `You are a journal analysis assistant helping someone understand their own thoughts over time.
+${userProfile ? `
+## User Profile
+
+The following is your accumulated understanding of the journal owner, distilled from previous analysis sessions. This profile is yours to maintain and update as you learn more about them:
+
+${userProfile}
+
+---
+` : ""}
 ${agentOverview ? `
-## User Context
+## User-Provided Context
 
 The following is context/instructions provided by the journal owner to help you understand them better:
 
@@ -63,11 +72,28 @@ Your job is to analyze new journal entries by:
 - **search_entries**: Search all journal entries for a keyword or phrase. The current entry is automatically excluded from results.
 - **list_entries**: List all journal entry files (excluding the current entry).
 - **read_entry**: Read the full content of a specific entry file.
+- **update_user_profile**: Update the user profile document with new insights. Use this to record important information about the user that would help future analysis sessions.
 
 Each entry file is named with a timestamp ID (e.g., \`1766541217269-i6b2qhp7y.md\`) and contains:
 - YAML frontmatter with metadata (id, created, status, title, tags)
 - The transcript text
 - Analysis section (if previously analyzed)
+
+## Maintaining the User Profile
+
+You have access to a special document called the "User Profile" that persists across analysis sessions. This is YOUR document to maintain—use it to record concise, conceptual information about the user that would help future instantiations of you better understand them.
+
+Update the profile when you learn something significant about:
+- The user's core values, beliefs, or worldview
+- Important people in their life (relationships, names, context)
+- Recurring themes, goals, or challenges
+- Life circumstances (job, location, major life events)
+- Communication patterns or preferences
+- Emotional patterns or coping mechanisms
+
+Keep the profile concise and structured. Focus on information that provides context, not exhaustive details. If the current entry reveals something new or contradicts existing understanding, update the profile accordingly.
+
+Use the update_user_profile tool AFTER completing your JSON analysis if you've learned something worth preserving.
 
 IMPORTANT: After exploring related entries, you MUST respond with a JSON analysis in exactly this format:
 {
@@ -227,16 +253,23 @@ ${transcript}
   // Create MCP tools that filter out the current entry
   const journalTools = createJournalTools(entryId);
 
+  // Fetch the user profile
+  const userProfile = getUserProfile();
+
   // Build the system prompt
-  const systemPrompt = getAnalysisSystemPrompt(ENTRIES_DIR, agentOverview);
+  const systemPrompt = getAnalysisSystemPrompt(ENTRIES_DIR, agentOverview, userProfile);
 
   // Log agent configuration if debug enabled
   if (config.debug.agentMessages) {
     console.log("[Agent] Starting analysis query:");
     console.log(`  Entry ID: ${entryId}`);
     console.log(`  Has agent overview: ${!!agentOverview}`);
+    console.log(`  Has user profile: ${!!userProfile}`);
     if (agentOverview) {
       console.log(`  Agent overview: ${agentOverview.slice(0, 300)}${agentOverview.length > 300 ? "..." : ""}`);
+    }
+    if (userProfile) {
+      console.log(`  User profile: ${userProfile.slice(0, 300)}${userProfile.length > 300 ? "..." : ""}`);
     }
     console.log(`  System prompt length: ${systemPrompt.length} chars`);
     console.log(`  System prompt preview: ${systemPrompt.slice(0, 500)}...`);
@@ -259,12 +292,14 @@ ${transcript}
         "mcp__journal-tools__search_entries",
         "mcp__journal-tools__list_entries",
         "mcp__journal-tools__read_entry",
+        "mcp__journal-tools__update_user_profile",
       ],
       // Don't need bypassPermissions since we only allow specific MCP tools
       tools: [
         "mcp__journal-tools__search_entries",
         "mcp__journal-tools__list_entries",
         "mcp__journal-tools__read_entry",
+        "mcp__journal-tools__update_user_profile",
       ],
       // Enable extended thinking for better analysis
       maxThinkingTokens: 10000,

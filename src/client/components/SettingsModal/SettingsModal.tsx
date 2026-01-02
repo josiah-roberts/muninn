@@ -9,18 +9,23 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [overview, setOverview] = useState('');
+  const [userProfile, setUserProfile] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [profileExpanded, setProfileExpanded] = useState(false);
 
-  // Load current overview when modal opens
+  // Load current overview and user profile when modal opens
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      fetch('/api/settings/agent-overview')
-        .then(r => r.json())
-        .then(data => {
-          setOverview(data.overview || '');
+      Promise.all([
+        fetch('/api/settings/agent-overview').then(r => r.json()),
+        fetch('/api/settings/user-profile').then(r => r.json()),
+      ])
+        .then(([overviewData, profileData]) => {
+          setOverview(overviewData.overview || '');
+          setUserProfile(profileData.profile || '');
           setLoading(false);
         })
         .catch((err) => {
@@ -94,6 +99,32 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 placeholder="e.g., I'm a software engineer working on AI. My partner is Alex. Key themes I'm exploring: career growth, work-life balance, mindfulness practice..."
                 rows={10}
               />
+            )}
+          </div>
+          <div class={styles.section}>
+            <h4>
+              <button
+                class={styles.expandBtn}
+                onClick={() => setProfileExpanded(!profileExpanded)}
+                type="button"
+              >
+                {profileExpanded ? '▼' : '▶'} User Profile
+              </button>
+            </h4>
+            <p class={styles.description}>
+              This is the agent's learned understanding of you, built up over time from analyzing your entries.
+              The agent updates this document automatically to help future analysis sessions better understand your context.
+            </p>
+            {profileExpanded && (
+              loading ? (
+                <div class={styles.loading}>Loading...</div>
+              ) : userProfile ? (
+                <pre class={styles.profileContent}>{userProfile}</pre>
+              ) : (
+                <p class={styles.emptyProfile}>
+                  No profile yet. The agent will create one as it learns about you through analyzing your entries.
+                </p>
+              )
             )}
           </div>
           <div class={styles.actions}>
