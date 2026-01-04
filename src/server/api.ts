@@ -112,7 +112,9 @@ api.get("/entries/:id", async (c) => {
     linked_entries: links.map(l => ({
       id: l.id,
       title: l.title,
-      relationship: l.relationship,
+      description: l.description,
+      is_source: l.is_source,
+      relationship: l.relationship, // Deprecated, kept for backward compatibility
     })),
   });
 });
@@ -375,9 +377,20 @@ api.post("/entries/:id/analyze", aiRateLimit, async (c) => {
         addTagToEntry(id, tagName);
       }
 
-      // Create links to related entries
-      for (const { entry: relatedEntry, reason } of related) {
-        linkEntries(id, relatedEntry.id, reason);
+      // Create links to related entries with bi-directional descriptions
+      for (const {
+        entry: relatedEntry,
+        source_to_target_description,
+        target_to_source_description,
+        reason,
+      } of related) {
+        linkEntries(
+          id,
+          relatedEntry.id,
+          source_to_target_description,
+          target_to_source_description,
+          reason // Deprecated, for backward compatibility
+        );
       }
 
       // Update entry with analysis data including trajectory

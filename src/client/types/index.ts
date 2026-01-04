@@ -13,6 +13,7 @@ export interface Entry {
   created_at: string;
   updated_at: string;
   tags: string[];
+  linked_entries?: LinkedEntry[];
 }
 
 // Agent trajectory types
@@ -43,7 +44,9 @@ export interface AgentTrajectory {
 export interface LinkedEntry {
   id: string;
   title: string | null;
-  relationship: string;
+  description: string | null; // The relevant description for this link direction
+  is_source: boolean; // True if the current entry is the source of this link
+  relationship: string; // Deprecated, kept for backward compatibility
 }
 
 export interface Analysis {

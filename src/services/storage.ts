@@ -172,25 +172,75 @@ export function getAllTags(): Tag[] {
 }
 
 // Entry links
-export function linkEntries(sourceId: string, targetId: string, relationship?: string): void {
+export function linkEntries(
+  sourceId: string,
+  targetId: string,
+  sourceToTargetDescription?: string,
+  targetToSourceDescription?: string,
+  relationship?: string // Deprecated, kept for backward compatibility
+): void {
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO entry_links (source_id, target_id, relationship)
-    VALUES (?, ?, ?)
+    INSERT OR REPLACE INTO entry_links (
+      source_id,
+      target_id,
+      source_to_target_description,
+      target_to_source_description,
+      relationship
+    )
+    VALUES (?, ?, ?, ?, ?)
   `);
-  stmt.run(sourceId, targetId, relationship || null);
+  stmt.run(
+    sourceId,
+    targetId,
+    sourceToTargetDescription || null,
+    targetToSourceDescription || null,
+    relationship || null
+  );
 }
 
-export function getLinkedEntries(entryId: string): Array<Entry & { relationship: string | null }> {
-  const stmt = db.prepare(`
-    SELECT e.*, el.relationship FROM entries e
+export interface LinkedEntryWithDescription extends Entry {
+  relationship: string | null; // Deprecated
+  description: string | null; // The relevant description for this link direction
+  is_source: boolean; // True if the current entry is the source of this link
+}
+
+export function getLinkedEntries(entryId: string): LinkedEntryWithDescription[] {
+  // Get entries where current entry is the source (links TO other entries)
+  const outgoingStmt = db.prepare(`
+    SELECT
+      e.*,
+      el.relationship,
+      el.source_to_target_description as description,
+      1 as is_source
+    FROM entries e
     JOIN entry_links el ON e.id = el.target_id
     WHERE el.source_id = ?
-    UNION
-    SELECT e.*, el.relationship FROM entries e
+  `);
+
+  // Get entries where current entry is the target (links FROM other entries)
+  const incomingStmt = db.prepare(`
+    SELECT
+      e.*,
+      el.relationship,
+      el.target_to_source_description as description,
+      0 as is_source
+    FROM entries e
     JOIN entry_links el ON e.id = el.source_id
     WHERE el.target_id = ?
   `);
-  return stmt.all(entryId, entryId) as Array<Entry & { relationship: string | null }>;
+
+  const outgoing = outgoingStmt.all(entryId) as LinkedEntryWithDescription[];
+  const incoming = incomingStmt.all(entryId) as LinkedEntryWithDescription[];
+
+  return [...outgoing, ...incoming];
+}
+
+export function deleteEntryLink(sourceId: string, targetId: string): void {
+  const stmt = db.prepare(`
+    DELETE FROM entry_links
+    WHERE source_id = ? AND target_id = ?
+  `);
+  stmt.run(sourceId, targetId);
 }
 
 // Settings CRUD
@@ -269,6 +319,8 @@ export function syncEntryToMarkdown(entry: Entry): void {
     }
   }
 
+  const linkedEntries = getLinkedEntries(entry.id);
+
   const content = `---
 id: ${entry.id}
 created: ${entry.created_at}
@@ -285,6 +337,12 @@ ${entry.title ? `# ${entry.title}\n\n` : ""}${entry.transcript || "*No transcrip
 ${analysis ? `\n## Analysis\n\n${JSON.stringify(analysis, null, 2)}` : ""}
 
 ${followUps.length > 0 ? `\n## Follow-up Questions\n\n${followUps.map((q, i) => `${i + 1}. ${q}`).join("\n")}` : ""}
+
+${linkedEntries.length > 0 ? `\n## Linked Entries\n\n${linkedEntries.map(le => {
+  const title = le.title || `Entry ${le.id}`;
+  const desc = le.description || "Related entry";
+  return `- [${title}](${le.id}.md): ${desc}`;
+}).join("\n")}` : ""}
 `.trim() + "\n";
 
   const newPath = getMarkdownPath(entry);

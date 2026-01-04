@@ -84,6 +84,22 @@ try {
   // Column already exists, ignore
 }
 
+// Migration: Add bi-directional description columns to entry_links
+try {
+  db.exec(
+    "ALTER TABLE entry_links ADD COLUMN source_to_target_description TEXT"
+  );
+} catch {
+  // Column already exists, ignore
+}
+try {
+  db.exec(
+    "ALTER TABLE entry_links ADD COLUMN target_to_source_description TEXT"
+  );
+} catch {
+  // Column already exists, ignore
+}
+
 export type EntryStatus = "pending_transcription" | "transcribed" | "analyzed";
 
 export interface Entry {
@@ -109,7 +125,9 @@ export interface Tag {
 export interface EntryLink {
   source_id: string;
   target_id: string;
-  relationship: string | null;
+  relationship: string | null; // Deprecated, kept for backward compatibility
+  source_to_target_description: string | null; // How source relates to target
+  target_to_source_description: string | null; // How target relates to source
   created_at: string;
 }
 

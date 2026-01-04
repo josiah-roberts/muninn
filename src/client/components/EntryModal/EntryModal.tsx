@@ -135,6 +135,26 @@ export function EntryModal() {
             </div>
           )}
 
+          {entry.linked_entries && entry.linked_entries.length > 0 && (
+            <div class={styles.analysisSection}>
+              <h4>Linked Entries</h4>
+              <div class={styles.linkedEntries}>
+                {entry.linked_entries.map((linkedEntry) => (
+                  <div key={linkedEntry.id} class={styles.linkedEntry}>
+                    <div class={styles.linkedEntryTitle}>
+                      {linkedEntry.title || `Entry ${linkedEntry.id}`}
+                    </div>
+                    {linkedEntry.description && (
+                      <div class={styles.linkedEntryDescription}>
+                        {linkedEntry.description}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {followUps.length > 0 && (
             <div class={styles.analysisSection}>
               <h4>Follow-up Questions</h4>

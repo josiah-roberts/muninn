@@ -35,7 +35,12 @@ export interface AnalysisResult {
 
 // Extended analysis result that includes related entries from agent
 export interface AnalysisResultWithRelated extends AnalysisResult {
-  related_entries?: Array<{ id: string; reason: string }>;
+  related_entries?: Array<{
+    id: string;
+    source_to_target_description: string;
+    target_to_source_description: string;
+    reason?: string; // Deprecated
+  }>;
 }
 
 // Store the last analysis result to pass related entries to findRelatedEntries
@@ -87,7 +92,14 @@ export async function findRelatedEntries(
   entry: Entry,
   analysis: AnalysisResult,
   limit = 5
-): Promise<Array<{ entry: Entry; reason: string }>> {
+): Promise<
+  Array<{
+    entry: Entry;
+    source_to_target_description: string;
+    target_to_source_description: string;
+    reason?: string; // Deprecated
+  }>
+> {
   // Use the cached agent analysis from the last analyzeTranscript call
   if (!lastAgentAnalysis) {
     return [];
@@ -100,9 +112,23 @@ export async function findRelatedEntries(
     .slice(0, limit)
     .map(r => {
       const foundEntry = getEntry(r.id);
-      return foundEntry ? { entry: foundEntry, reason: r.reason } : null;
+      return foundEntry
+        ? {
+            entry: foundEntry,
+            source_to_target_description: r.source_to_target_description,
+            target_to_source_description: r.target_to_source_description,
+            reason: r.reason, // For backward compatibility
+          }
+        : null;
     })
-    .filter((r): r is { entry: Entry; reason: string } => r !== null);
+    .filter(
+      (r): r is {
+        entry: Entry;
+        source_to_target_description: string;
+        target_to_source_description: string;
+        reason?: string;
+      } => r !== null
+    );
 
   lastAgentAnalysis = null;
   return result;

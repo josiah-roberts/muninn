@@ -114,13 +114,24 @@ IMPORTANT: After exploring related entries, you MUST respond with a JSON analysi
   "key_insights": ["notable thoughts, realizations, or ideas expressed"],
   "potential_links": [{"reason": "why this might connect to other entries", "keywords": ["search terms"]}],
   "follow_up_questions": ["thoughtful questions for deeper reflection"],
-  "related_entries": [{"id": "entry-id", "reason": "why it's related"}]
+  "related_entries": [{"id": "entry-id", "source_to_target_description": "how THIS entry relates to that entry (one sentence)", "target_to_source_description": "how that entry relates to THIS entry (one sentence)"}]
 }
+
+**About related_entries**: When you identify a related entry, provide TWO descriptions:
+- **source_to_target_description**: Describe how THIS (current) entry relates to the related entry (e.g., "Continues the discussion about career planning")
+- **target_to_source_description**: Describe how the related entry relates to THIS (current) entry (e.g., "Initially explored the career uncertainty mentioned here")
+
+These bi-directional descriptions help users understand the relationship from both perspectives.
 
 The JSON must be valid and complete. Do not include any text before or after the JSON.`;
 
 export interface AgentAnalysisResult extends AnalysisResult {
-  related_entries: Array<{ id: string; reason: string }>;
+  related_entries: Array<{
+    id: string;
+    source_to_target_description: string; // How current entry relates to this entry
+    target_to_source_description: string; // How this entry relates to current entry
+    reason?: string; // Deprecated, for backward compatibility
+  }>;
 }
 
 /**
