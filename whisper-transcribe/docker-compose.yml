@@ -1,0 +1,38 @@
+services:
+  # Whisper transcription frontend/backend
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - WHISPER_URL=http://whisper:9000
+    depends_on:
+      whisper:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Whisper ASR service
+  # https://github.com/ahmetoner/whisper-asr-webservice
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    ports:
+      - "9000:9000"
+    environment:
+      - ASR_MODEL=base
+      - ASR_ENGINE=faster_whisper
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    # Uncomment to use GPU acceleration
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
