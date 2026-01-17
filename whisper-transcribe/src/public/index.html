@@ -224,9 +224,9 @@
       <div class="upload-area" id="uploadArea">
         <div class="upload-icon">📁</div>
         <div class="upload-text">Click to upload or drag and drop</div>
-        <div class="upload-hint">Supports: MP3, WAV, M4A, FLAC, OGG, WebM</div>
+        <div class="upload-hint">Any audio format supported by ffmpeg</div>
       </div>
-      <input type="file" id="fileInput" accept="audio/*">
+      <input type="file" id="fileInput" accept="audio/*,video/*,.ogg,.opus,.webm">
     </div>
 
     <div class="result-container" id="resultContainer">
@@ -289,11 +289,6 @@
 
     // Handle file upload and transcription
     async function handleFile(file) {
-      if (!file.type.startsWith('audio/')) {
-        showStatus('error', 'Please upload an audio file');
-        return;
-      }
-
       showStatus('processing', `Transcribing ${file.name}... <div class="spinner"></div>`);
       resultContainer.style.display = 'none';
 
