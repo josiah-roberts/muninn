@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whisper Transcription</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 800px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 2em;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 0.95em;
+    }
+
+    .upload-area {
+      border: 3px dashed #667eea;
+      border-radius: 12px;
+      padding: 60px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: #f8f9ff;
+      margin-bottom: 20px;
+    }
+
+    .upload-area:hover {
+      border-color: #764ba2;
+      background: #f0f2ff;
+    }
+
+    .upload-area.dragover {
+      border-color: #764ba2;
+      background: #e8ebff;
+      transform: scale(1.02);
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    .upload-text {
+      color: #667eea;
+      font-size: 1.1em;
+      font-weight: 500;
+    }
+
+    .upload-hint {
+      color: #999;
+      font-size: 0.9em;
+      margin-top: 8px;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    .status {
+      text-align: center;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-weight: 500;
+      display: none;
+    }
+
+    .status.processing {
+      background: #fff3cd;
+      color: #856404;
+      display: block;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      display: block;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      display: block;
+    }
+
+    .result-container {
+      display: none;
+      margin-top: 30px;
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .result-title {
+      font-size: 1.2em;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .result-meta {
+      color: #666;
+      font-size: 0.9em;
+      margin-top: 5px;
+    }
+
+    .copy-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.95em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .copy-btn:hover {
+      background: #764ba2;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .copy-btn:active {
+      transform: translateY(0);
+    }
+
+    .copy-btn.copied {
+      background: #28a745;
+    }
+
+    .result-text {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+      line-height: 1.6;
+      color: #333;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .new-upload-btn {
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.95em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 20px;
+      width: 100%;
+    }
+
+    .new-upload-btn:hover {
+      background: #5a6268;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎤 Whisper Transcription</h1>
+    <p class="subtitle">Upload any audio file to transcribe it using OpenAI Whisper</p>
+
+    <div class="status" id="status"></div>
+
+    <div id="uploadSection">
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">Click to upload or drag and drop</div>
+        <div class="upload-hint">Any audio format supported by ffmpeg</div>
+      </div>
+      <input type="file" id="fileInput" accept="audio/*,video/*,.ogg,.opus,.webm">
+    </div>
+
+    <div class="result-container" id="resultContainer">
+      <div class="result-header">
+        <div>
+          <div class="result-title">Transcription Result</div>
+          <div class="result-meta" id="resultMeta"></div>
+        </div>
+        <button class="copy-btn" id="copyBtn">
+          <span>📋</span>
+          <span id="copyBtnText">Copy</span>
+        </button>
+      </div>
+      <div class="result-text" id="resultText"></div>
+      <button class="new-upload-btn" id="newUploadBtn">Upload Another File</button>
+    </div>
+  </div>
+
+  <script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const status = document.getElementById('status');
+    const uploadSection = document.getElementById('uploadSection');
+    const resultContainer = document.getElementById('resultContainer');
+    const resultText = document.getElementById('resultText');
+    const resultMeta = document.getElementById('resultMeta');
+    const copyBtn = document.getElementById('copyBtn');
+    const copyBtnText = document.getElementById('copyBtnText');
+    const newUploadBtn = document.getElementById('newUploadBtn');
+
+    let currentTranscription = '';
+
+    // Click to upload
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    // File input change
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    // Drag and drop
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // Handle file upload and transcription
+    async function handleFile(file) {
+      showStatus('processing', `Transcribing ${file.name}... <div class="spinner"></div>`);
+      resultContainer.style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('audio', file);
+
+      try {
+        const response = await fetch('/api/transcribe', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Transcription failed');
+        }
+
+        currentTranscription = data.text;
+        showResult(data);
+        showStatus('success', '✓ Transcription complete!');
+        setTimeout(() => status.style.display = 'none', 3000);
+      } catch (error) {
+        showStatus('error', `Error: ${error.message}`);
+      }
+    }
+
+    // Show status message
+    function showStatus(type, message) {
+      status.className = `status ${type}`;
+      status.innerHTML = message;
+      status.style.display = 'block';
+    }
+
+    // Show transcription result
+    function showResult(data) {
+      uploadSection.style.display = 'none';
+      resultContainer.style.display = 'block';
+      resultText.textContent = data.text;
+
+      let meta = `File: ${data.fileName}`;
+      if (data.language) meta += ` • Language: ${data.language}`;
+      if (data.duration) meta += ` • Duration: ${Math.round(data.duration)}s`;
+      resultMeta.textContent = meta;
+    }
+
+    // Copy to clipboard
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(currentTranscription);
+        copyBtnText.textContent = 'Copied!';
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+          copyBtnText.textContent = 'Copy';
+          copyBtn.classList.remove('copied');
+        }, 2000);
+      } catch (error) {
+        showStatus('error', 'Failed to copy to clipboard');
+      }
+    });
+
+    // New upload
+    newUploadBtn.addEventListener('click', () => {
+      uploadSection.style.display = 'block';
+      resultContainer.style.display = 'none';
+      status.style.display = 'none';
+      fileInput.value = '';
+      currentTranscription = '';
+    });
+  </script>
+</body>
+</html>
