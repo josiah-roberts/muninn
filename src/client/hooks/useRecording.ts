@@ -9,6 +9,8 @@ import {
   elapsedSeconds,
   entries,
   showToast,
+  uploadProgress,
+  uploadTotal,
 } from '../store/index.ts';
 import { createEntry, transcribeEntry, analyzeEntry } from '../api/client.ts';
 
@@ -188,59 +190,89 @@ export function useRecording() {
     }
   };
 
-  const uploadFile = async (file: File) => {
+  const processOneFile = async (file: File, index: number, total: number) => {
+    const prefix = total > 1 ? `[${index}/${total}] ` : '';
+
+    updateDataSafety('pending', `${prefix}Uploading...`);
+    statusText.value = `${prefix}Uploading...`;
+
+    let currentEntry = await createEntry(file, file.type);
+
+    // Add entry to list immediately
+    entries.value = [currentEntry, ...entries.value];
+
+    updateDataSafety('safe', `${prefix}Audio saved`);
+    statusText.value = `${prefix}Transcribing...`;
+
+    try {
+      currentEntry = await transcribeEntry(currentEntry.id);
+      entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
+
+      statusText.value = `${prefix}Analyzing...`;
+
+      try {
+        currentEntry = await analyzeEntry(currentEntry.id);
+        entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
+      } catch (err) {
+        console.error('Analysis failed:', err);
+        showToast(`Analysis failed for ${file.name} - you can retry from the entry`);
+      }
+    } catch (err) {
+      console.error('Transcription failed:', err);
+      showToast(`Transcription failed for ${file.name} - you can retry from the entry`);
+    }
+  };
+
+  const uploadFile = async (files: File | File[]) => {
     if (isRecording.value || isUploading.value) {
       return;
     }
 
+    const fileList = Array.isArray(files) ? files : [files];
+    if (fileList.length === 0) return;
+
     isUploading.value = true;
-    updateDataSafety('pending', 'Uploading...');
-    statusText.value = 'Uploading...';
+    uploadTotal.value = fileList.length;
+    uploadProgress.value = 0;
 
-    try {
-      let currentEntry = await createEntry(file, file.type);
+    let successCount = 0;
+    let failCount = 0;
 
-      // Add entry to list immediately
-      entries.value = [currentEntry, ...entries.value];
-
-      updateDataSafety('safe', 'Audio saved');
-      statusText.value = 'Transcribing...';
-
+    for (let i = 0; i < fileList.length; i++) {
+      uploadProgress.value = i + 1;
       try {
-        currentEntry = await transcribeEntry(currentEntry.id);
-        entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
-
-        statusText.value = 'Analyzing...';
-
-        try {
-          currentEntry = await analyzeEntry(currentEntry.id);
-          entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
-          statusText.value = 'Entry saved and analyzed!';
-        } catch (err) {
-          console.error('Analysis failed:', err);
-          statusText.value = 'Entry saved (analysis pending)';
-          showToast('Analysis failed - you can retry from the entry');
-        }
+        await processOneFile(fileList[i], i + 1, fileList.length);
+        successCount++;
       } catch (err) {
-        console.error('Transcription failed:', err);
-        statusText.value = 'Entry saved (transcription pending)';
-        showToast('Transcription failed - you can retry from the entry');
+        const error = err as Error;
+        console.error(`Upload failed for ${fileList[i].name}:`, error);
+        failCount++;
+        showToast(`Upload failed for ${fileList[i].name}: ${error.message || 'unknown error'}`);
       }
-
-      setTimeout(() => {
-        statusText.value = 'Tap to start recording';
-        dataSafetyStatus.value = 'hidden';
-      }, 3000);
-
-    } catch (err) {
-      const error = err as Error;
-      console.error('Upload failed:', error);
-      updateDataSafety('pending', 'Upload failed');
-      statusText.value = `Upload failed: ${error.message || 'unknown error'}`;
-      showToast(`Upload failed: ${error.message || 'unknown error'}`);
-    } finally {
-      isUploading.value = false;
     }
+
+    // Summary status
+    if (fileList.length > 1) {
+      if (failCount === 0) {
+        statusText.value = `All ${successCount} files processed!`;
+        showToast(`Successfully processed ${successCount} files`, 'success');
+      } else {
+        statusText.value = `Done: ${successCount} succeeded, ${failCount} failed`;
+      }
+    } else {
+      statusText.value = successCount > 0 ? 'Entry saved and analyzed!' : 'Upload failed';
+    }
+
+    updateDataSafety('safe', 'Done');
+
+    setTimeout(() => {
+      statusText.value = 'Tap to start recording';
+      dataSafetyStatus.value = 'hidden';
+      uploadProgress.value = 0;
+      uploadTotal.value = 0;
+    }, 3000);
+
+    isUploading.value = false;
   };
 
   // Cleanup on unmount

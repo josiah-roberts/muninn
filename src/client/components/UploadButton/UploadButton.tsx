@@ -16,9 +16,9 @@ export function UploadButton() {
 
   const handleFileChange = (e: Event) => {
     const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) {
-      uploadFile(file);
+    const files = input.files;
+    if (files && files.length > 0) {
+      uploadFile(Array.from(files));
       input.value = '';
     }
   };
@@ -29,6 +29,7 @@ export function UploadButton() {
         ref={inputRef}
         type="file"
         accept="audio/*"
+        multiple
         class={styles.hiddenInput}
         onChange={handleFileChange}
       />
@@ -36,7 +37,7 @@ export function UploadButton() {
         class={`${styles.button} ${disabled ? styles.disabled : ''}`}
         onClick={handleClick}
         disabled={disabled}
-        title="Upload audio file"
+        title="Upload audio files"
       >
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

@@ -9,6 +9,10 @@ export const dataSafetyStatus = signal<'safe' | 'pending' | 'hidden'>('hidden');
 export const dataSafetyText = signal('');
 export const statusText = signal('Tap to start recording');
 
+// Batch upload progress (for multi-file uploads)
+export const uploadProgress = signal(0);  // Current file number (1-indexed)
+export const uploadTotal = signal(0);     // Total files in batch
+
 // Timer state
 export const elapsedSeconds = signal(0);
 
