@@ -12,6 +12,14 @@
   margin-bottom: 1.5rem;
 }
 
+.buttonGroup {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
 .entriesHeader {
   display: flex;
   justify-content: space-between;

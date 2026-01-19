@@ -2,6 +2,7 @@ import { useEffect } from 'preact/hooks';
 import { Header } from './components/Header/Header.tsx';
 import { InterviewCarousel } from './components/InterviewCarousel/InterviewCarousel.tsx';
 import { RecordButton } from './components/RecordButton/RecordButton.tsx';
+import { UploadButton } from './components/UploadButton/UploadButton.tsx';
 import { RecordingStatus } from './components/RecordingStatus/RecordingStatus.tsx';
 import { DataSafetyIndicator } from './components/DataSafetyIndicator/DataSafetyIndicator.tsx';
 import { EntryList } from './components/EntryList/EntryList.tsx';
@@ -26,7 +27,10 @@ export function App() {
       <main class={styles.main}>
         <InterviewCarousel />
         <div class={styles.recordSection}>
-          <RecordButton />
+          <div class={styles.buttonGroup}>
+            <UploadButton />
+            <RecordButton />
+          </div>
           <RecordingStatus />
           <DataSafetyIndicator />
         </div>

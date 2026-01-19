@@ -1,0 +1,28 @@
+.hiddenInput {
+  display: none;
+}
+
+.button {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-alt, #374151);
+  color: var(--text-secondary, #9ca3af);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.button:hover:not(.disabled) {
+  background: var(--accent);
+  color: white;
+  transform: scale(1.05);
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

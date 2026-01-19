@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'preact/hooks';
 import {
   isRecording,
+  isUploading,
   recordingStartTime,
   dataSafetyStatus,
   dataSafetyText,
@@ -187,6 +188,61 @@ export function useRecording() {
     }
   };
 
+  const uploadFile = async (file: File) => {
+    if (isRecording.value || isUploading.value) {
+      return;
+    }
+
+    isUploading.value = true;
+    updateDataSafety('pending', 'Uploading...');
+    statusText.value = 'Uploading...';
+
+    try {
+      let currentEntry = await createEntry(file, file.type);
+
+      // Add entry to list immediately
+      entries.value = [currentEntry, ...entries.value];
+
+      updateDataSafety('safe', 'Audio saved');
+      statusText.value = 'Transcribing...';
+
+      try {
+        currentEntry = await transcribeEntry(currentEntry.id);
+        entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
+
+        statusText.value = 'Analyzing...';
+
+        try {
+          currentEntry = await analyzeEntry(currentEntry.id);
+          entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
+          statusText.value = 'Entry saved and analyzed!';
+        } catch (err) {
+          console.error('Analysis failed:', err);
+          statusText.value = 'Entry saved (analysis pending)';
+          showToast('Analysis failed - you can retry from the entry');
+        }
+      } catch (err) {
+        console.error('Transcription failed:', err);
+        statusText.value = 'Entry saved (transcription pending)';
+        showToast('Transcription failed - you can retry from the entry');
+      }
+
+      setTimeout(() => {
+        statusText.value = 'Tap to start recording';
+        dataSafetyStatus.value = 'hidden';
+      }, 3000);
+
+    } catch (err) {
+      const error = err as Error;
+      console.error('Upload failed:', error);
+      updateDataSafety('pending', 'Upload failed');
+      statusText.value = `Upload failed: ${error.message || 'unknown error'}`;
+      showToast(`Upload failed: ${error.message || 'unknown error'}`);
+    } finally {
+      isUploading.value = false;
+    }
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -195,5 +251,5 @@ export function useRecording() {
     };
   }, []);
 
-  return { toggleRecording };
+  return { toggleRecording, uploadFile };
 }
