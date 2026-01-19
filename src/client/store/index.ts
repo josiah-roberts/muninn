@@ -3,6 +3,7 @@ import type { Entry } from '../types/index.ts';
 
 // Recording state
 export const isRecording = signal(false);
+export const isUploading = signal(false);
 export const recordingStartTime = signal<number | null>(null);
 export const dataSafetyStatus = signal<'safe' | 'pending' | 'hidden'>('hidden');
 export const dataSafetyText = signal('');
