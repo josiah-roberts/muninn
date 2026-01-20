@@ -3,7 +3,7 @@ import { config } from "../config.ts";
 import { type Entry, type Tag } from "./db.ts";
 import { getEntryTags, listEntries, getEntry, getAgentOverview } from "./storage.ts";
 import { withRetry } from "./retry.ts";
-import { analyzeEntryWithAgent, type AgentAnalysisResult, type AgentTrajectory } from "../agent/analyzer.ts";
+import { analyzeEntryWithAgent, type AgentAnalysisResult, type AgentTrajectory, type AnalysisWithTrajectory as AgentAnalysisWithTrajectory } from "../agent/analyzer.ts";
 
 // Timeout for Claude API requests (120 seconds - analysis can be complex)
 const CLAUDE_TIMEOUT_MS = 120_000;
@@ -57,17 +57,41 @@ export async function analyzeTranscript(
   transcript: string,
   existingTags: Tag[] = []
 ): Promise<AnalysisWithTrajectory> {
-  // Fetch user-provided agent overview/context
-  const agentOverview = getAgentOverview();
+  console.log(`[analyzeTranscript:${entryId}] Starting analysis, transcript length: ${transcript.length}, existingTags: ${existingTags.length}`);
 
-  const { analysis: fullAnalysis, trajectory } = await analyzeEntryWithAgent(entryId, transcript, existingTags, agentOverview);
+  // Fetch user-provided agent overview/context
+  console.log(`[analyzeTranscript:${entryId}] Fetching agent overview...`);
+  const agentOverview = getAgentOverview();
+  console.log(`[analyzeTranscript:${entryId}] Agent overview: ${agentOverview ? `${agentOverview.length} chars` : "none"}`);
+
+  console.log(`[analyzeTranscript:${entryId}] Calling analyzeEntryWithAgent...`);
+  const agentStartTime = Date.now();
+  let fullAnalysis: AgentAnalysisResult;
+  let trajectory: AgentTrajectory;
+  try {
+    const result = await analyzeEntryWithAgent(entryId, transcript, existingTags, agentOverview);
+    fullAnalysis = result.analysis;
+    trajectory = result.trajectory;
+    const agentMs = Date.now() - agentStartTime;
+    console.log(`[analyzeTranscript:${entryId}] analyzeEntryWithAgent returned in ${agentMs}ms`);
+    console.log(`[analyzeTranscript:${entryId}] Agent result: turns=${trajectory.numTurns}, cost=$${trajectory.totalCostUsd.toFixed(4)}, durationMs=${trajectory.durationMs}`);
+    console.log(`[analyzeTranscript:${entryId}] Analysis title: "${fullAnalysis.title}"`);
+    console.log(`[analyzeTranscript:${entryId}] Related entries from agent: ${fullAnalysis.related_entries?.length || 0}`);
+  } catch (agentError) {
+    const agentMs = Date.now() - agentStartTime;
+    console.error(`[analyzeTranscript:${entryId}] analyzeEntryWithAgent FAILED after ${agentMs}ms`);
+    console.error(`[analyzeTranscript:${entryId}] Agent error:`, agentError);
+    throw agentError;
+  }
 
   // Store full result for findRelatedEntries to use
+  console.log(`[analyzeTranscript:${entryId}] Caching analysis for findRelatedEntries`);
   lastAgentAnalysis = fullAnalysis;
   lastAgentTrajectory = trajectory;
 
   // Return the standard AnalysisResult (without related_entries) plus trajectory
   const { related_entries, ...analysis } = fullAnalysis;
+  console.log(`[analyzeTranscript:${entryId}] Returning analysis (related_entries stripped for separate processing)`);
   return { analysis, trajectory };
 }
 
@@ -88,23 +112,40 @@ export async function findRelatedEntries(
   analysis: AnalysisResult,
   limit = 5
 ): Promise<Array<{ entry: Entry; reason: string }>> {
+  console.log(`[findRelatedEntries:${entry.id}] Starting, limit=${limit}`);
+  console.log(`[findRelatedEntries:${entry.id}] lastAgentAnalysis cached: ${lastAgentAnalysis ? "yes" : "no"}`);
+
   // Use the cached agent analysis from the last analyzeTranscript call
   if (!lastAgentAnalysis) {
+    console.log(`[findRelatedEntries:${entry.id}] No cached analysis, returning empty array`);
     return [];
   }
 
   const relatedEntries = lastAgentAnalysis.related_entries || [];
+  console.log(`[findRelatedEntries:${entry.id}] Found ${relatedEntries.length} related entries in cached analysis`);
+
+  if (relatedEntries.length > 0) {
+    console.log(`[findRelatedEntries:${entry.id}] Related entry IDs: ${relatedEntries.map(r => r.id).join(", ")}`);
+  }
 
   // Clear the cache after use
   const result = relatedEntries
     .slice(0, limit)
     .map(r => {
+      console.log(`[findRelatedEntries:${entry.id}] Looking up entry: ${r.id}`);
       const foundEntry = getEntry(r.id);
+      if (!foundEntry) {
+        console.log(`[findRelatedEntries:${entry.id}]   Entry ${r.id} not found in database`);
+      } else {
+        console.log(`[findRelatedEntries:${entry.id}]   Entry ${r.id} found: "${foundEntry.title || "Untitled"}"`);
+      }
       return foundEntry ? { entry: foundEntry, reason: r.reason } : null;
     })
     .filter((r): r is { entry: Entry; reason: string } => r !== null);
 
+  console.log(`[findRelatedEntries:${entry.id}] Clearing lastAgentAnalysis cache`);
   lastAgentAnalysis = null;
+  console.log(`[findRelatedEntries:${entry.id}] Returning ${result.length} valid related entries`);
   return result;
 }
 

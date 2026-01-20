@@ -342,56 +342,107 @@ api.post("/entries/:id/retranscribe", aiRateLimit, async (c) => {
 // Trigger analysis (with stricter rate limiting for expensive Claude calls)
 api.post("/entries/:id/analyze", aiRateLimit, async (c) => {
   const id = c.req.param("id");
+  const requestStartTime = Date.now();
+  console.log(`[Analyze:${id}] === Starting analysis request ===`);
+
   const entry = getEntry(id);
+  console.log(`[Analyze:${id}] Entry lookup: ${entry ? "found" : "not found"}`);
 
   if (!entry) {
+    console.log(`[Analyze:${id}] Returning 404 - entry not found`);
     return c.json({ error: "Entry not found" }, 404);
   }
 
+  console.log(`[Analyze:${id}] Entry details: status=${entry.status}, hasTranscript=${!!entry.transcript}, transcriptLength=${entry.transcript?.length || 0}`);
+
   if (!entry.transcript) {
+    console.log(`[Analyze:${id}] Returning 400 - no transcript`);
     return c.json({ error: "No transcript to analyze" }, 400);
   }
 
   try {
+    console.log(`[Analyze:${id}] Fetching existing tags...`);
     const existingTags = getAllTags();
+    console.log(`[Analyze:${id}] Found ${existingTags.length} existing tags: ${existingTags.map(t => t.name).join(", ")}`);
 
     // External API calls happen outside the transaction (they're slow and don't touch DB)
-    const startTime = Date.now();
+    console.log(`[Analyze:${id}] Starting analyzeTranscript...`);
+    const analysisStartTime = Date.now();
     const { analysis, trajectory } = await analyzeTranscript(id, entry.transcript, existingTags);
-    const analyzeSeconds = (Date.now() - startTime) / 1000;
+    const analyzeSeconds = (Date.now() - analysisStartTime) / 1000;
+    console.log(`[Analyze:${id}] analyzeTranscript completed in ${analyzeSeconds.toFixed(1)}s`);
 
     // Log timing metrics
     const wordCount = entry.transcript.split(/\s+/).length;
     const wordsPerSecond = (wordCount / analyzeSeconds).toFixed(1);
-    console.log(`[Analyze] entry=${id} words=${wordCount} analyze=${analyzeSeconds.toFixed(1)}s rate=${wordsPerSecond}w/s turns=${trajectory.numTurns} cost=$${trajectory.totalCostUsd.toFixed(4)}`);
+    console.log(`[Analyze:${id}] Metrics: words=${wordCount} rate=${wordsPerSecond}w/s turns=${trajectory.numTurns} cost=$${trajectory.totalCostUsd.toFixed(4)}`);
 
+    // Log analysis result summary
+    console.log(`[Analyze:${id}] Analysis result: title="${analysis.title}", themes=${analysis.themes.length}, tags=${analysis.tags.length}, insights=${analysis.key_insights.length}`);
+    console.log(`[Analyze:${id}] Analysis tags: ${analysis.tags.join(", ")}`);
+    console.log(`[Analyze:${id}] Analysis themes: ${analysis.themes.join(", ")}`);
+
+    console.log(`[Analyze:${id}] Finding related entries...`);
+    const relatedStartTime = Date.now();
     const related = await findRelatedEntries(entry, analysis);
+    console.log(`[Analyze:${id}] findRelatedEntries completed in ${((Date.now() - relatedStartTime) / 1000).toFixed(2)}s, found ${related.length} related entries`);
+    if (related.length > 0) {
+      console.log(`[Analyze:${id}] Related entries: ${related.map(r => `${r.entry.id} (${r.reason.slice(0, 50)}...)`).join(", ")}`);
+    }
 
     // Wrap all DB operations in a transaction for atomicity
     // If any operation fails, the entire analysis update is rolled back
+    console.log(`[Analyze:${id}] Starting database transaction...`);
+    const transactionStartTime = Date.now();
     const updated = withTransaction(() => {
       // Apply tags
+      console.log(`[Analyze:${id}] Applying ${analysis.tags.length} tags...`);
       for (const tagName of analysis.tags) {
+        console.log(`[Analyze:${id}]   Adding tag: "${tagName}"`);
         addTagToEntry(id, tagName);
       }
+      console.log(`[Analyze:${id}] Tags applied successfully`);
 
       // Create links to related entries
+      console.log(`[Analyze:${id}] Creating ${related.length} entry links...`);
       for (const { entry: relatedEntry, reason } of related) {
+        console.log(`[Analyze:${id}]   Linking to: ${relatedEntry.id}`);
         linkEntries(id, relatedEntry.id, reason);
       }
+      console.log(`[Analyze:${id}] Entry links created successfully`);
 
       // Update entry with analysis data including trajectory
-      return updateEntry(id, {
+      console.log(`[Analyze:${id}] Updating entry with analysis data...`);
+      const analysisJson = JSON.stringify(analysis);
+      const followUpJson = JSON.stringify(analysis.follow_up_questions);
+      const trajectoryJson = JSON.stringify(trajectory);
+      console.log(`[Analyze:${id}] JSON sizes: analysis=${analysisJson.length}, followUp=${followUpJson.length}, trajectory=${trajectoryJson.length}`);
+
+      const result = updateEntry(id, {
         title: analysis.title,
-        analysis_json: JSON.stringify(analysis),
-        follow_up_questions: JSON.stringify(analysis.follow_up_questions),
-        agent_trajectory: JSON.stringify(trajectory),
+        analysis_json: analysisJson,
+        follow_up_questions: followUpJson,
+        agent_trajectory: trajectoryJson,
         status: "analyzed",
       });
+      console.log(`[Analyze:${id}] Entry updated: ${result ? "success" : "failed/null"}`);
+      return result;
     });
+    const transactionMs = Date.now() - transactionStartTime;
+    console.log(`[Analyze:${id}] Transaction completed in ${transactionMs}ms`);
+
+    if (!updated) {
+      console.error(`[Analyze:${id}] Transaction returned null/undefined - entry update failed`);
+      throw new Error("Entry update returned null");
+    }
 
     // Get tags for the response
+    console.log(`[Analyze:${id}] Fetching tags for response...`);
     const tags = getEntryTags(id);
+    console.log(`[Analyze:${id}] Entry now has ${tags.length} tags: ${tags.map(t => t.name).join(", ")}`);
+
+    const totalMs = Date.now() - requestStartTime;
+    console.log(`[Analyze:${id}] === Analysis complete, returning success (${totalMs}ms total) ===`);
 
     return c.json({
       ...updated,
@@ -404,7 +455,20 @@ api.post("/entries/:id/analyze", aiRateLimit, async (c) => {
       })),
     });
   } catch (error) {
-    console.error("Analysis error:", error);
+    const totalMs = Date.now() - requestStartTime;
+    console.error(`[Analyze:${id}] === Analysis FAILED after ${totalMs}ms ===`);
+    console.error(`[Analyze:${id}] Error type: ${error?.constructor?.name || typeof error}`);
+    console.error(`[Analyze:${id}] Error message: ${error instanceof Error ? error.message : String(error)}`);
+    if (error instanceof Error && error.stack) {
+      console.error(`[Analyze:${id}] Stack trace:\n${error.stack}`);
+    }
+    if (error && typeof error === "object") {
+      // Log any additional properties on the error object
+      const errorProps = Object.keys(error).filter(k => k !== "message" && k !== "stack");
+      if (errorProps.length > 0) {
+        console.error(`[Analyze:${id}] Additional error properties: ${JSON.stringify(error, errorProps, 2)}`);
+      }
+    }
     // Log full error server-side, return generic message to client
     return c.json({ error: "Analysis failed" }, 500);
   }

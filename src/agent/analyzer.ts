@@ -101,23 +101,7 @@ Keep the profile concise and structured. Focus on information that provides cont
 
 Update the profile AFTER completing your JSON analysis if you've learned something worth preserving.
 
-IMPORTANT: After exploring related entries, you MUST respond with a JSON analysis in exactly this format:
-{
-  "title": "A brief, descriptive title for this entry",
-  "summary": "2-3 sentence summary of the main content",
-  "themes": ["major themes discussed"],
-  "tags": ["suggested tags - reuse existing ones when appropriate"],
-  "mood": "overall emotional tone if discernible",
-  "people_mentioned": ["names of people mentioned"],
-  "places_mentioned": ["locations mentioned"],
-  "time_references": [{"description": "what was referenced", "approximate_date": "if determinable"}],
-  "key_insights": ["notable thoughts, realizations, or ideas expressed"],
-  "potential_links": [{"reason": "why this might connect to other entries", "keywords": ["search terms"]}],
-  "follow_up_questions": ["thoughtful questions for deeper reflection"],
-  "related_entries": [{"id": "entry-id", "reason": "why it's related"}]
-}
-
-The JSON must be valid and complete. Do not include any text before or after the JSON.`;
+IMPORTANT: After exploring related entries, you MUST call the \`conclude_analysis\` tool to submit your analysis. Do NOT output JSON as text - use the tool instead. The tool call is how you complete the analysis.`;
 
 export interface AgentAnalysisResult extends AnalysisResult {
   related_entries: Array<{ id: string; reason: string }>;
@@ -220,12 +204,19 @@ export async function analyzeEntryWithAgent(
   existingTags: Tag[] = [],
   agentOverview?: string | null
 ): Promise<AnalysisWithTrajectory> {
+  console.log(`[AgentAnalyzer:${entryId}] === Starting agent analysis ===`);
+  console.log(`[AgentAnalyzer:${entryId}] Transcript length: ${transcript.length} chars`);
+  console.log(`[AgentAnalyzer:${entryId}] Existing tags: ${existingTags.length}`);
+  console.log(`[AgentAnalyzer:${entryId}] Has agent overview: ${!!agentOverview}`);
+
   const tagList = existingTags.map(t => t.name).join(", ");
 
   // Fetch last 20 entries (excluding current) for context
+  console.log(`[AgentAnalyzer:${entryId}] Fetching recent entries for context...`);
   const recentEntries = listEntries({ limit: 21 }) // Get 21 to account for current entry
     .filter(e => e.id !== entryId)
     .slice(0, 20);
+  console.log(`[AgentAnalyzer:${entryId}] Found ${recentEntries.length} recent entries for context`);
 
   const recentEntriesContext = recentEntries.length > 0
     ? `## Recent Entries\n\nHere are the ${recentEntries.length} most recent entries for context:\n\n${recentEntries.map(e => `- **${e.title || "Untitled"}** (${e.id})`).join("\n")}\n\nUse search_entries or read_entry to explore entries that seem relevant.`
@@ -250,6 +241,8 @@ ${recentEntriesContext}
 ${transcript}
 ---`;
 
+  console.log(`[AgentAnalyzer:${entryId}] Prompt length: ${prompt.length} chars`);
+
   let finalResult: string | null = null;
   let numTurns = 0;
   let totalCostUsd = 0;
@@ -257,13 +250,18 @@ ${transcript}
   const startTime = Date.now();
 
   // Create MCP tools that filter out the current entry
+  console.log(`[AgentAnalyzer:${entryId}] Creating journal tools...`);
   const journalTools = createJournalTools(entryId);
+  console.log(`[AgentAnalyzer:${entryId}] Journal tools created`);
 
   // Fetch the user profile
+  console.log(`[AgentAnalyzer:${entryId}] Fetching user profile...`);
   const userProfile = getUserProfile();
+  console.log(`[AgentAnalyzer:${entryId}] User profile: ${userProfile ? `${userProfile.length} chars` : "none"}`);
 
   // Build the system prompt
   const systemPrompt = getAnalysisSystemPrompt(ENTRIES_DIR, agentOverview, userProfile);
+  console.log(`[AgentAnalyzer:${entryId}] System prompt built: ${systemPrompt.length} chars`);
 
   // Log agent configuration if debug enabled
   if (config.debug.agentMessages) {
@@ -283,14 +281,17 @@ ${transcript}
 
   // Capture stderr from Claude Code subprocess for debugging
   const stderrHandler = (message: string) => {
-    console.error("[Claude Code stderr]", message);
+    console.error(`[AgentAnalyzer:${entryId}] [stderr] ${message}`);
   };
+
+  console.log(`[AgentAnalyzer:${entryId}] Calling query() with model=claude-opus-4-5-20251101, maxTurns=50, maxThinkingTokens=10000`);
+  console.log(`[AgentAnalyzer:${entryId}] Allowed tools: search_entries, list_entries, read_entry, write_user_profile, edit_user_profile, conclude_analysis`);
 
   const response = query({
     prompt,
     options: {
       model: "claude-opus-4-5-20251101",
-      maxTurns: 25,
+      maxTurns: 50,
       systemPrompt,
       // Use custom MCP tools that filter out current entry
       mcpServers: { "journal-tools": journalTools },
@@ -300,6 +301,7 @@ ${transcript}
         "mcp__journal-tools__read_entry",
         "mcp__journal-tools__write_user_profile",
         "mcp__journal-tools__edit_user_profile",
+        "mcp__journal-tools__conclude_analysis",
       ],
       // Don't need bypassPermissions since we only allow specific MCP tools
       tools: [
@@ -308,6 +310,7 @@ ${transcript}
         "mcp__journal-tools__read_entry",
         "mcp__journal-tools__write_user_profile",
         "mcp__journal-tools__edit_user_profile",
+        "mcp__journal-tools__conclude_analysis",
       ],
       // Enable extended thinking for better analysis
       maxThinkingTokens: 10000,
@@ -316,47 +319,129 @@ ${transcript}
     },
   });
 
-  for await (const message of response) {
-    // Capture all messages for trajectory
-    messages.push(message);
+  console.log(`[AgentAnalyzer:${entryId}] query() returned async iterator, starting to consume messages...`);
 
-    // Debug logging for agent messages
-    if (config.debug.agentMessages) {
-      logAgentMessage(message);
-    }
+  let messageCount = 0;
+  let capturedAnalysis: AgentAnalysisResult | null = null;
+  console.log(`[AgentAnalyzer:${entryId}] Entering message processing loop...`);
 
-    if (message.type === "result") {
-      if (message.subtype === "success") {
-        finalResult = message.result;
-        numTurns = message.num_turns;
-        totalCostUsd = message.total_cost_usd;
-        console.log(`Agent analysis completed in ${message.num_turns} turns, cost: $${message.total_cost_usd.toFixed(4)}`);
-      } else {
-        // Log full error details
-        console.error("[Agent] Result error:", JSON.stringify(message, null, 2));
-        const errorMsg = "errors" in message && Array.isArray(message.errors) && message.errors.length > 0
-          ? message.errors.join(", ")
-          : `subtype=${message.subtype}, full message logged above`;
-        throw new Error(`Agent analysis failed: ${errorMsg}`);
+  try {
+    for await (const message of response) {
+      messageCount++;
+      console.log(`[AgentAnalyzer:${entryId}] Received message #${messageCount}, type: ${message.type}`);
+
+      // Capture all messages for trajectory
+      messages.push(message);
+
+      // Debug logging for agent messages
+      if (config.debug.agentMessages) {
+        logAgentMessage(message);
+      }
+
+      if (message.type === "result") {
+        console.log(`[AgentAnalyzer:${entryId}] Processing result message, subtype: ${message.subtype}`);
+
+        if (message.subtype === "success") {
+          finalResult = message.result;
+          numTurns = message.num_turns;
+          totalCostUsd = message.total_cost_usd;
+          console.log(`[AgentAnalyzer:${entryId}] Agent completed successfully: turns=${message.num_turns}, cost=$${message.total_cost_usd.toFixed(4)}`);
+          console.log(`[AgentAnalyzer:${entryId}] Text result length: ${finalResult?.length ?? 0}, captured analysis: ${capturedAnalysis ? "yes" : "no"}`);
+        } else {
+          // Log full error details
+          console.error(`[AgentAnalyzer:${entryId}] Agent result error, subtype: ${message.subtype}`);
+          console.error(`[AgentAnalyzer:${entryId}] Full error message:`, JSON.stringify(message, null, 2));
+          const errorMsg = "errors" in message && Array.isArray(message.errors) && message.errors.length > 0
+            ? message.errors.join(", ")
+            : `subtype=${message.subtype}, full message logged above`;
+          throw new Error(`Agent analysis failed: ${errorMsg}`);
+        }
+      } else if (message.type === "assistant") {
+        // Log summary of assistant messages including tool names
+        const contentSummary = message.message.content.map(b => {
+          if (b.type === "tool_use") {
+            return `tool_use:${b.name}`;
+          }
+          return b.type;
+        }).join(", ");
+        console.log(`[AgentAnalyzer:${entryId}] Assistant message content: ${contentSummary}`);
+
+        // Capture the conclude_analysis tool call
+        for (const block of message.message.content) {
+          if (block.type === "tool_use" && block.name === "mcp__journal-tools__conclude_analysis") {
+            console.log(`[AgentAnalyzer:${entryId}] Captured conclude_analysis tool call!`);
+            console.log(`[AgentAnalyzer:${entryId}] Tool input: ${JSON.stringify(block.input).slice(0, 500)}...`);
+            capturedAnalysis = block.input as AgentAnalysisResult;
+          }
+        }
+      } else if (message.type === "system") {
+        console.log(`[AgentAnalyzer:${entryId}] System message, subtype: ${message.subtype}`);
       }
     }
+  } catch (loopError) {
+    console.error(`[AgentAnalyzer:${entryId}] Error in message processing loop after ${messageCount} messages`);
+    console.error(`[AgentAnalyzer:${entryId}] Loop error:`, loopError);
+    throw loopError;
   }
 
   const durationMs = Date.now() - startTime;
+  console.log(`[AgentAnalyzer:${entryId}] Message loop completed: ${messageCount} messages, ${durationMs}ms`);
 
-  if (!finalResult) {
-    throw new Error("Agent did not return a result");
+  // Prefer captured tool call over parsing text result
+  let parsed: AgentAnalysisResult;
+
+  if (capturedAnalysis) {
+    console.log(`[AgentAnalyzer:${entryId}] Using captured conclude_analysis tool call`);
+    parsed = capturedAnalysis;
+  } else if (finalResult && finalResult.length > 0) {
+    // Fallback: try to parse JSON from text result
+    console.log(`[AgentAnalyzer:${entryId}] No tool call captured, falling back to JSON parsing from text result...`);
+    const jsonMatch = finalResult.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error(`[AgentAnalyzer:${entryId}] Could not find JSON in result`);
+      console.error(`[AgentAnalyzer:${entryId}] Full result: ${finalResult}`);
+      throw new Error("Could not parse JSON from agent response");
+    }
+
+    console.log(`[AgentAnalyzer:${entryId}] JSON matched, length: ${jsonMatch[0].length} chars`);
+
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as AgentAnalysisResult;
+      console.log(`[AgentAnalyzer:${entryId}] JSON parsed successfully`);
+    } catch (parseError) {
+      console.error(`[AgentAnalyzer:${entryId}] JSON parse failed:`, parseError);
+      console.error(`[AgentAnalyzer:${entryId}] JSON string: ${jsonMatch[0].slice(0, 1000)}...`);
+      throw parseError;
+    }
+  } else {
+    // Neither tool call nor text result
+    console.error(`[AgentAnalyzer:${entryId}] No conclude_analysis tool call and no text result after ${messageCount} messages`);
+    // Log the last few assistant messages to understand what happened
+    const assistantMessages = messages.filter(m => m.type === "assistant");
+    console.error(`[AgentAnalyzer:${entryId}] Total assistant messages: ${assistantMessages.length}`);
+    const lastFew = assistantMessages.slice(-3);
+    for (let i = 0; i < lastFew.length; i++) {
+      const msg = lastFew[i];
+      if (msg.type === "assistant") {
+        console.error(`[AgentAnalyzer:${entryId}] Assistant message [-${lastFew.length - i}]:`);
+        for (const block of msg.message.content) {
+          if (block.type === "text") {
+            console.error(`[AgentAnalyzer:${entryId}]   text (${block.text.length} chars): ${block.text.slice(0, 300)}${block.text.length > 300 ? "..." : ""}`);
+          } else if (block.type === "thinking") {
+            console.error(`[AgentAnalyzer:${entryId}]   thinking (${block.thinking.length} chars): ${block.thinking.slice(0, 300)}${block.thinking.length > 300 ? "..." : ""}`);
+          } else if (block.type === "tool_use") {
+            console.error(`[AgentAnalyzer:${entryId}]   tool_use: ${block.name} - ${JSON.stringify(block.input).slice(0, 200)}`);
+          } else {
+            console.error(`[AgentAnalyzer:${entryId}]   ${block.type}`);
+          }
+        }
+      }
+    }
+    throw new Error("Agent did not call conclude_analysis tool");
   }
-
-  // Parse the JSON response
-  const jsonMatch = finalResult.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Could not parse JSON from agent response");
-  }
-
-  const parsed = JSON.parse(jsonMatch[0]) as AgentAnalysisResult;
 
   // Ensure all required fields have defaults
+  console.log(`[AgentAnalyzer:${entryId}] Building analysis result with defaults...`);
   const analysis: AgentAnalysisResult = {
     title: parsed.title || "Untitled Entry",
     summary: parsed.summary || "",
@@ -372,6 +457,20 @@ ${transcript}
     related_entries: parsed.related_entries || [],
   };
 
+  console.log(`[AgentAnalyzer:${entryId}] Analysis result built:`);
+  console.log(`[AgentAnalyzer:${entryId}]   title: "${analysis.title}"`);
+  console.log(`[AgentAnalyzer:${entryId}]   summary: ${analysis.summary.length} chars`);
+  console.log(`[AgentAnalyzer:${entryId}]   themes: ${analysis.themes.length} (${analysis.themes.join(", ")})`);
+  console.log(`[AgentAnalyzer:${entryId}]   tags: ${analysis.tags.length} (${analysis.tags.join(", ")})`);
+  console.log(`[AgentAnalyzer:${entryId}]   mood: ${analysis.mood || "none"}`);
+  console.log(`[AgentAnalyzer:${entryId}]   people_mentioned: ${analysis.people_mentioned.length}`);
+  console.log(`[AgentAnalyzer:${entryId}]   places_mentioned: ${analysis.places_mentioned.length}`);
+  console.log(`[AgentAnalyzer:${entryId}]   time_references: ${analysis.time_references.length}`);
+  console.log(`[AgentAnalyzer:${entryId}]   key_insights: ${analysis.key_insights.length}`);
+  console.log(`[AgentAnalyzer:${entryId}]   potential_links: ${analysis.potential_links.length}`);
+  console.log(`[AgentAnalyzer:${entryId}]   follow_up_questions: ${analysis.follow_up_questions.length}`);
+  console.log(`[AgentAnalyzer:${entryId}]   related_entries: ${analysis.related_entries.length}`);
+
   const trajectory: AgentTrajectory = {
     prompt,
     messages,
@@ -379,6 +478,9 @@ ${transcript}
     totalCostUsd,
     durationMs,
   };
+
+  console.log(`[AgentAnalyzer:${entryId}] Trajectory built: ${messages.length} messages, ${numTurns} turns, $${totalCostUsd.toFixed(4)}, ${durationMs}ms`);
+  console.log(`[AgentAnalyzer:${entryId}] === Agent analysis complete ===`);
 
   return { analysis, trajectory };
 }
