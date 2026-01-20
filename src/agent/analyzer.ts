@@ -300,14 +300,14 @@ ${transcript}
     console.error(`[AgentAnalyzer:${entryId}] [stderr] ${message}`);
   };
 
-  console.log(`[AgentAnalyzer:${entryId}] Calling query() with model=claude-opus-4-5-20251101, maxTurns=25, maxThinkingTokens=10000`);
+  console.log(`[AgentAnalyzer:${entryId}] Calling query() with model=claude-opus-4-5-20251101, maxTurns=50, maxThinkingTokens=10000`);
   console.log(`[AgentAnalyzer:${entryId}] Allowed tools: search_entries, list_entries, read_entry, write_user_profile, edit_user_profile`);
 
   const response = query({
     prompt,
     options: {
       model: "claude-opus-4-5-20251101",
-      maxTurns: 25,
+      maxTurns: 50,
       systemPrompt,
       // Use custom MCP tools that filter out current entry
       mcpServers: { "journal-tools": journalTools },
@@ -373,9 +373,14 @@ ${transcript}
           throw new Error(`Agent analysis failed: ${errorMsg}`);
         }
       } else if (message.type === "assistant") {
-        // Log summary of assistant messages
-        const contentTypes = message.message.content.map(b => b.type).join(", ");
-        console.log(`[AgentAnalyzer:${entryId}] Assistant message content types: ${contentTypes}`);
+        // Log summary of assistant messages including tool names
+        const contentSummary = message.message.content.map(b => {
+          if (b.type === "tool_use") {
+            return `tool_use:${b.name}`;
+          }
+          return b.type;
+        }).join(", ");
+        console.log(`[AgentAnalyzer:${entryId}] Assistant message content: ${contentSummary}`);
       } else if (message.type === "system") {
         console.log(`[AgentAnalyzer:${entryId}] System message, subtype: ${message.subtype}`);
       }
