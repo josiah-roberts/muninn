@@ -359,9 +359,12 @@ ${transcript}
           numTurns = message.num_turns;
           totalCostUsd = message.total_cost_usd;
           console.log(`[AgentAnalyzer:${entryId}] Agent completed successfully: turns=${message.num_turns}, cost=$${message.total_cost_usd.toFixed(4)}`);
-          console.log(`[AgentAnalyzer:${entryId}] Result length: ${finalResult?.length || 0} chars`);
-          if (finalResult) {
+          console.log(`[AgentAnalyzer:${entryId}] Result type: ${typeof finalResult}, length: ${finalResult?.length ?? "null/undefined"}, truthy: ${!!finalResult}`);
+          if (finalResult && finalResult.length > 0) {
             console.log(`[AgentAnalyzer:${entryId}] Result preview: ${finalResult.slice(0, 500)}${finalResult.length > 500 ? "..." : ""}`);
+          } else {
+            console.error(`[AgentAnalyzer:${entryId}] WARNING: Agent succeeded but returned empty/null result!`);
+            console.error(`[AgentAnalyzer:${entryId}] Full success message:`, JSON.stringify(message, null, 2));
           }
         } else {
           // Log full error details
@@ -396,6 +399,27 @@ ${transcript}
 
   if (!finalResult) {
     console.error(`[AgentAnalyzer:${entryId}] No result received from agent after ${messageCount} messages`);
+    // Log the last few assistant messages to understand what happened
+    const assistantMessages = messages.filter(m => m.type === "assistant");
+    console.error(`[AgentAnalyzer:${entryId}] Total assistant messages: ${assistantMessages.length}`);
+    const lastFew = assistantMessages.slice(-3);
+    for (let i = 0; i < lastFew.length; i++) {
+      const msg = lastFew[i];
+      if (msg.type === "assistant") {
+        console.error(`[AgentAnalyzer:${entryId}] Assistant message [-${lastFew.length - i}]:`);
+        for (const block of msg.message.content) {
+          if (block.type === "text") {
+            console.error(`[AgentAnalyzer:${entryId}]   text (${block.text.length} chars): ${block.text.slice(0, 300)}${block.text.length > 300 ? "..." : ""}`);
+          } else if (block.type === "thinking") {
+            console.error(`[AgentAnalyzer:${entryId}]   thinking (${block.thinking.length} chars): ${block.thinking.slice(0, 300)}${block.thinking.length > 300 ? "..." : ""}`);
+          } else if (block.type === "tool_use") {
+            console.error(`[AgentAnalyzer:${entryId}]   tool_use: ${block.name} - ${JSON.stringify(block.input).slice(0, 200)}`);
+          } else {
+            console.error(`[AgentAnalyzer:${entryId}]   ${block.type}`);
+          }
+        }
+      }
+    }
     throw new Error("Agent did not return a result");
   }
 
