@@ -101,23 +101,7 @@ Keep the profile concise and structured. Focus on information that provides cont
 
 Update the profile AFTER completing your JSON analysis if you've learned something worth preserving.
 
-IMPORTANT: After exploring related entries, you MUST respond with a JSON analysis in exactly this format:
-{
-  "title": "A brief, descriptive title for this entry",
-  "summary": "2-3 sentence summary of the main content",
-  "themes": ["major themes discussed"],
-  "tags": ["suggested tags - reuse existing ones when appropriate"],
-  "mood": "overall emotional tone if discernible",
-  "people_mentioned": ["names of people mentioned"],
-  "places_mentioned": ["locations mentioned"],
-  "time_references": [{"description": "what was referenced", "approximate_date": "if determinable"}],
-  "key_insights": ["notable thoughts, realizations, or ideas expressed"],
-  "potential_links": [{"reason": "why this might connect to other entries", "keywords": ["search terms"]}],
-  "follow_up_questions": ["thoughtful questions for deeper reflection"],
-  "related_entries": [{"id": "entry-id", "reason": "why it's related"}]
-}
-
-The JSON must be valid and complete. Do not include any text before or after the JSON.`;
+IMPORTANT: After exploring related entries, you MUST call the \`conclude_analysis\` tool to submit your analysis. Do NOT output JSON as text - use the tool instead. The tool call is how you complete the analysis.`;
 
 export interface AgentAnalysisResult extends AnalysisResult {
   related_entries: Array<{ id: string; reason: string }>;
@@ -301,7 +285,7 @@ ${transcript}
   };
 
   console.log(`[AgentAnalyzer:${entryId}] Calling query() with model=claude-opus-4-5-20251101, maxTurns=50, maxThinkingTokens=10000`);
-  console.log(`[AgentAnalyzer:${entryId}] Allowed tools: search_entries, list_entries, read_entry, write_user_profile, edit_user_profile`);
+  console.log(`[AgentAnalyzer:${entryId}] Allowed tools: search_entries, list_entries, read_entry, write_user_profile, edit_user_profile, conclude_analysis`);
 
   const response = query({
     prompt,
@@ -317,6 +301,7 @@ ${transcript}
         "mcp__journal-tools__read_entry",
         "mcp__journal-tools__write_user_profile",
         "mcp__journal-tools__edit_user_profile",
+        "mcp__journal-tools__conclude_analysis",
       ],
       // Don't need bypassPermissions since we only allow specific MCP tools
       tools: [
@@ -325,6 +310,7 @@ ${transcript}
         "mcp__journal-tools__read_entry",
         "mcp__journal-tools__write_user_profile",
         "mcp__journal-tools__edit_user_profile",
+        "mcp__journal-tools__conclude_analysis",
       ],
       // Enable extended thinking for better analysis
       maxThinkingTokens: 10000,
@@ -336,6 +322,7 @@ ${transcript}
   console.log(`[AgentAnalyzer:${entryId}] query() returned async iterator, starting to consume messages...`);
 
   let messageCount = 0;
+  let capturedAnalysis: AgentAnalysisResult | null = null;
   console.log(`[AgentAnalyzer:${entryId}] Entering message processing loop...`);
 
   try {
@@ -359,13 +346,7 @@ ${transcript}
           numTurns = message.num_turns;
           totalCostUsd = message.total_cost_usd;
           console.log(`[AgentAnalyzer:${entryId}] Agent completed successfully: turns=${message.num_turns}, cost=$${message.total_cost_usd.toFixed(4)}`);
-          console.log(`[AgentAnalyzer:${entryId}] Result type: ${typeof finalResult}, length: ${finalResult?.length ?? "null/undefined"}, truthy: ${!!finalResult}`);
-          if (finalResult && finalResult.length > 0) {
-            console.log(`[AgentAnalyzer:${entryId}] Result preview: ${finalResult.slice(0, 500)}${finalResult.length > 500 ? "..." : ""}`);
-          } else {
-            console.error(`[AgentAnalyzer:${entryId}] WARNING: Agent succeeded but returned empty/null result!`);
-            console.error(`[AgentAnalyzer:${entryId}] Full success message:`, JSON.stringify(message, null, 2));
-          }
+          console.log(`[AgentAnalyzer:${entryId}] Text result length: ${finalResult?.length ?? 0}, captured analysis: ${capturedAnalysis ? "yes" : "no"}`);
         } else {
           // Log full error details
           console.error(`[AgentAnalyzer:${entryId}] Agent result error, subtype: ${message.subtype}`);
@@ -384,6 +365,15 @@ ${transcript}
           return b.type;
         }).join(", ");
         console.log(`[AgentAnalyzer:${entryId}] Assistant message content: ${contentSummary}`);
+
+        // Capture the conclude_analysis tool call
+        for (const block of message.message.content) {
+          if (block.type === "tool_use" && block.name === "mcp__journal-tools__conclude_analysis") {
+            console.log(`[AgentAnalyzer:${entryId}] Captured conclude_analysis tool call!`);
+            console.log(`[AgentAnalyzer:${entryId}] Tool input: ${JSON.stringify(block.input).slice(0, 500)}...`);
+            capturedAnalysis = block.input as AgentAnalysisResult;
+          }
+        }
       } else if (message.type === "system") {
         console.log(`[AgentAnalyzer:${entryId}] System message, subtype: ${message.subtype}`);
       }
@@ -397,8 +387,35 @@ ${transcript}
   const durationMs = Date.now() - startTime;
   console.log(`[AgentAnalyzer:${entryId}] Message loop completed: ${messageCount} messages, ${durationMs}ms`);
 
-  if (!finalResult) {
-    console.error(`[AgentAnalyzer:${entryId}] No result received from agent after ${messageCount} messages`);
+  // Prefer captured tool call over parsing text result
+  let parsed: AgentAnalysisResult;
+
+  if (capturedAnalysis) {
+    console.log(`[AgentAnalyzer:${entryId}] Using captured conclude_analysis tool call`);
+    parsed = capturedAnalysis;
+  } else if (finalResult && finalResult.length > 0) {
+    // Fallback: try to parse JSON from text result
+    console.log(`[AgentAnalyzer:${entryId}] No tool call captured, falling back to JSON parsing from text result...`);
+    const jsonMatch = finalResult.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error(`[AgentAnalyzer:${entryId}] Could not find JSON in result`);
+      console.error(`[AgentAnalyzer:${entryId}] Full result: ${finalResult}`);
+      throw new Error("Could not parse JSON from agent response");
+    }
+
+    console.log(`[AgentAnalyzer:${entryId}] JSON matched, length: ${jsonMatch[0].length} chars`);
+
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as AgentAnalysisResult;
+      console.log(`[AgentAnalyzer:${entryId}] JSON parsed successfully`);
+    } catch (parseError) {
+      console.error(`[AgentAnalyzer:${entryId}] JSON parse failed:`, parseError);
+      console.error(`[AgentAnalyzer:${entryId}] JSON string: ${jsonMatch[0].slice(0, 1000)}...`);
+      throw parseError;
+    }
+  } else {
+    // Neither tool call nor text result
+    console.error(`[AgentAnalyzer:${entryId}] No conclude_analysis tool call and no text result after ${messageCount} messages`);
     // Log the last few assistant messages to understand what happened
     const assistantMessages = messages.filter(m => m.type === "assistant");
     console.error(`[AgentAnalyzer:${entryId}] Total assistant messages: ${assistantMessages.length}`);
@@ -420,28 +437,7 @@ ${transcript}
         }
       }
     }
-    throw new Error("Agent did not return a result");
-  }
-
-  // Parse the JSON response
-  console.log(`[AgentAnalyzer:${entryId}] Parsing JSON from result...`);
-  const jsonMatch = finalResult.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    console.error(`[AgentAnalyzer:${entryId}] Could not find JSON in result`);
-    console.error(`[AgentAnalyzer:${entryId}] Full result: ${finalResult}`);
-    throw new Error("Could not parse JSON from agent response");
-  }
-
-  console.log(`[AgentAnalyzer:${entryId}] JSON matched, length: ${jsonMatch[0].length} chars`);
-
-  let parsed: AgentAnalysisResult;
-  try {
-    parsed = JSON.parse(jsonMatch[0]) as AgentAnalysisResult;
-    console.log(`[AgentAnalyzer:${entryId}] JSON parsed successfully`);
-  } catch (parseError) {
-    console.error(`[AgentAnalyzer:${entryId}] JSON parse failed:`, parseError);
-    console.error(`[AgentAnalyzer:${entryId}] JSON string: ${jsonMatch[0].slice(0, 1000)}...`);
-    throw parseError;
+    throw new Error("Agent did not call conclude_analysis tool");
   }
 
   // Ensure all required fields have defaults

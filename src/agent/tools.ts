@@ -182,5 +182,45 @@ export function createJournalTools(currentEntryId: string) {
     }
   );
 
+  // Schema for conclude_analysis tool - matches AnalysisResult interface
+  const timeReferenceSchema = z.object({
+    description: z.string().describe("What time period or event was referenced"),
+    approximate_date: z.string().optional().describe("ISO date if determinable, e.g. '2024-01-15' or '2024-01'"),
+  });
+
+  const potentialLinkSchema = z.object({
+    reason: z.string().describe("Why this might connect to other entries"),
+    keywords: z.array(z.string()).describe("Search terms to find related entries"),
+  });
+
+  const relatedEntrySchema = z.object({
+    id: z.string().describe("The entry ID (filename without .md)"),
+    reason: z.string().describe("Why this entry is related"),
+  });
+
+  server.tool(
+    "conclude_analysis",
+    "Submit the final analysis for this journal entry. You MUST call this tool to complete the analysis - do not just output JSON text. Call this after you have explored related entries and are ready to provide your structured analysis.",
+    {
+      title: z.string().describe("A brief, descriptive title for this entry (3-10 words)"),
+      summary: z.string().describe("2-3 sentence summary of the main content"),
+      themes: z.array(z.string()).describe("Major themes discussed in this entry"),
+      tags: z.array(z.string()).describe("Suggested tags - reuse existing ones when appropriate"),
+      mood: z.string().optional().describe("Overall emotional tone if discernible (e.g. 'reflective', 'anxious', 'hopeful')"),
+      people_mentioned: z.array(z.string()).describe("Names of people mentioned in the entry"),
+      places_mentioned: z.array(z.string()).describe("Locations mentioned in the entry"),
+      time_references: z.array(timeReferenceSchema).describe("References to specific times or events"),
+      key_insights: z.array(z.string()).describe("Notable thoughts, realizations, or ideas expressed"),
+      potential_links: z.array(potentialLinkSchema).describe("Potential connections to other entries"),
+      follow_up_questions: z.array(z.string()).describe("Thoughtful questions for deeper reflection"),
+      related_entries: z.array(relatedEntrySchema).describe("Entries that are related to this one, based on your exploration"),
+    },
+    async (analysis) => {
+      // This tool doesn't actually do anything - its input is captured by the analyzer
+      // Return success so the agent knows the analysis was received
+      return { content: [{ type: "text", text: "Analysis submitted successfully." }] };
+    }
+  );
+
   return { type: "sdk" as const, name: "journal-tools", instance: server };
 }
