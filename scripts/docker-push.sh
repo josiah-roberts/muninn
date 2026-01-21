@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-# Use podman if available, otherwise docker
-if command -v podman &>/dev/null; then
-    DOCKER=podman
-else
+# Use docker if available, otherwise podman
+if command -v docker &>/dev/null; then
     DOCKER=docker
+else
+    DOCKER=podman
 fi
 
 IMAGE_NAME="arkayos/muninn"
