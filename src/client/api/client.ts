@@ -50,17 +50,21 @@ export async function createEntry(audio: Blob, mimeType: string): Promise<Entry>
   }
 }
 
-export async function transcribeEntry(id: string): Promise<Entry> {
+export async function transcribeEntry(id: string, prompt?: string): Promise<Entry> {
   const res = await fetch(`/api/entries/${id}/transcribe`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
   });
   if (!res.ok) throw new Error('Transcription failed');
   return res.json();
 }
 
-export async function retranscribeEntry(id: string): Promise<Entry> {
+export async function retranscribeEntry(id: string, prompt?: string): Promise<Entry> {
   const res = await fetch(`/api/entries/${id}/retranscribe`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
   });
   if (!res.ok) throw new Error('Re-transcription failed');
   return res.json();

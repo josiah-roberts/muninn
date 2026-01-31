@@ -12,6 +12,14 @@ import {
 } from '../store/index.ts';
 import { createEntry, transcribeEntry, analyzeEntry } from '../api/client.ts';
 
+const TRANSCRIPTION_PROMPT_KEY = 'muninn:transcription-prompt';
+function getTranscriptionPrompt(): string | undefined {
+  try {
+    const val = localStorage.getItem(TRANSCRIPTION_PROMPT_KEY);
+    return val || undefined;
+  } catch { return undefined; }
+}
+
 export function useRecording() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -137,7 +145,7 @@ export function useRecording() {
         statusText.value = 'Transcribing...';
 
         try {
-          currentEntry = await transcribeEntry(currentEntry.id);
+          currentEntry = await transcribeEntry(currentEntry.id, getTranscriptionPrompt());
           // Update entry in-place
           entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
 
@@ -207,7 +215,7 @@ export function useRecording() {
       statusText.value = 'Transcribing...';
 
       try {
-        currentEntry = await transcribeEntry(currentEntry.id);
+        currentEntry = await transcribeEntry(currentEntry.id, getTranscriptionPrompt());
         entries.value = entries.value.map(e => e.id === currentEntry.id ? currentEntry : e);
 
         statusText.value = 'Analyzing...';

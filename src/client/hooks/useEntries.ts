@@ -2,6 +2,14 @@ import { entries, entriesLoading, interviewQuestions, selectedEntryId, isModalOp
 import { fetchEntries, fetchEntry, fetchInterviewQuestions, transcribeEntry as apiTranscribe, retranscribeEntry as apiRetranscribe, analyzeEntry as apiAnalyze, deleteEntry as apiDelete } from '../api/client.ts';
 import type { Entry } from '../types/index.ts';
 
+const TRANSCRIPTION_PROMPT_KEY = 'muninn:transcription-prompt';
+function getTranscriptionPrompt(): string | undefined {
+  try {
+    const val = localStorage.getItem(TRANSCRIPTION_PROMPT_KEY);
+    return val || undefined;
+  } catch { return undefined; }
+}
+
 export function useEntries() {
   const loadEntries = async () => {
     entriesLoading.value = true;
@@ -47,7 +55,7 @@ export function useEntries() {
 
   const transcribeEntry = async (id: string) => {
     try {
-      await apiTranscribe(id);
+      await apiTranscribe(id, getTranscriptionPrompt());
       await loadEntries();
       await openEntry(id);
     } catch (err) {
@@ -58,7 +66,7 @@ export function useEntries() {
 
   const retranscribeEntry = async (id: string) => {
     try {
-      await apiRetranscribe(id);
+      await apiRetranscribe(id, getTranscriptionPrompt());
       await loadEntries();
       await openEntry(id);
     } catch (err) {

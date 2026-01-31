@@ -242,6 +242,10 @@ api.post("/entries/:id/transcribe", aiRateLimit, async (c) => {
     return c.json({ error: "No audio file for this entry" }, 400);
   }
 
+  // Optional transcription prompt (Whisper initial_prompt)
+  const body = await c.req.json().catch(() => ({}));
+  const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
+
   try {
     const { readFileSync } = await import("fs");
     const audioData = readFileSync(entry.audio_path);
@@ -253,7 +257,7 @@ api.post("/entries/:id/transcribe", aiRateLimit, async (c) => {
 
     const stt = getSTTProvider();
     const startTime = Date.now();
-    const result = await stt.transcribe(audioData, mimeType);
+    const result = await stt.transcribe(audioData, mimeType, prompt);
     const transcribeSeconds = (Date.now() - startTime) / 1000;
 
     // Log timing metrics
@@ -290,6 +294,10 @@ api.post("/entries/:id/retranscribe", aiRateLimit, async (c) => {
     return c.json({ error: "No audio file for this entry" }, 400);
   }
 
+  // Optional transcription prompt (Whisper initial_prompt)
+  const body = await c.req.json().catch(() => ({}));
+  const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
+
   try {
     // Clear existing tags first
     const existingTags = getEntryTags(id);
@@ -318,7 +326,7 @@ api.post("/entries/:id/retranscribe", aiRateLimit, async (c) => {
 
     const stt = getSTTProvider();
     const startTime = Date.now();
-    const result = await stt.transcribe(audioData, mimeType);
+    const result = await stt.transcribe(audioData, mimeType, prompt);
     const transcribeSeconds = (Date.now() - startTime) / 1000;
 
     // Log timing metrics
