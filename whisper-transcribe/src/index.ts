@@ -21,6 +21,7 @@ app.post("/api/transcribe", async (c) => {
   try {
     const body = await c.req.parseBody();
     const audioFile = body.audio;
+    const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
 
     if (!audioFile || !(audioFile instanceof File)) {
       return c.json({ error: "No audio file provided" }, 400);
@@ -33,7 +34,7 @@ app.post("/api/transcribe", async (c) => {
     console.log(`Transcribing ${audioFile.name} (${audioFile.type}, ${buffer.length} bytes)`);
 
     // Transcribe using Whisper
-    const result = await transcribeAudio(buffer, audioFile.type, WHISPER_URL);
+    const result = await transcribeAudio(buffer, audioFile.type, WHISPER_URL, prompt);
 
     console.log(`Transcription complete: ${result.text.length} characters`);
 
