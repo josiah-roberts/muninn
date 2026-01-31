@@ -221,7 +221,7 @@
       margin-top: 5px;
     }
 
-    .copy-btn {
+    .action-btn {
       background: #667eea;
       color: white;
       border: none;
@@ -236,18 +236,23 @@
       gap: 8px;
     }
 
-    .copy-btn:hover {
+    .action-btn:hover {
       background: #764ba2;
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
     }
 
-    .copy-btn:active {
+    .action-btn:active {
       transform: translateY(0);
     }
 
-    .copy-btn.copied {
+    .action-btn.copied {
       background: #28a745;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 8px;
     }
 
     .result-text {
@@ -412,10 +417,16 @@
           <div class="result-title">Transcription Result</div>
           <div class="result-meta" id="resultMeta"></div>
         </div>
-        <button class="copy-btn" id="copyBtn">
-          <span>📋</span>
-          <span id="copyBtnText">Copy</span>
-        </button>
+        <div class="result-actions">
+          <button class="action-btn" id="downloadBtn" style="display: none">
+            <span>💾</span>
+            <span>Download Audio</span>
+          </button>
+          <button class="action-btn" id="copyBtn">
+            <span>📋</span>
+            <span id="copyBtnText">Copy</span>
+          </button>
+        </div>
       </div>
       <div class="result-text" id="resultText"></div>
       <button class="new-upload-btn" id="newUploadBtn">Upload Another File</button>
@@ -433,6 +444,7 @@
     const copyBtn = document.getElementById('copyBtn');
     const copyBtnText = document.getElementById('copyBtnText');
     const newUploadBtn = document.getElementById('newUploadBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
 
     // Recording elements
     const recordBtn = document.getElementById('recordBtn');
@@ -443,6 +455,8 @@
     const dataSafety = document.getElementById('dataSafety');
 
     let currentTranscription = '';
+    let currentAudioBlob = null;
+    let currentAudioName = null;
 
     // Prompt elements
     const promptToggle = document.getElementById('promptToggle');
@@ -655,6 +669,10 @@
         : 'webm';
       const file = new File([blob], `recording.${ext}`, { type: mimeType });
 
+      // Save for download
+      currentAudioBlob = blob;
+      currentAudioName = `recording.${ext}`;
+
       // Retry logic with exponential backoff
       const maxRetries = 3;
       let lastError = null;
@@ -735,6 +753,10 @@
       showStatus('processing', `Transcribing ${file.name}... <div class="spinner"></div>`);
       resultContainer.style.display = 'none';
 
+      // Save for download
+      currentAudioBlob = file;
+      currentAudioName = file.name;
+
       const formData = new FormData();
       formData.append('audio', file);
       const prompt = getPrompt();
@@ -778,6 +800,9 @@
       if (data.language) meta += ` • Language: ${data.language}`;
       if (data.duration) meta += ` • Duration: ${Math.round(data.duration)}s`;
       resultMeta.textContent = meta;
+
+      // Show download button if audio is available
+      downloadBtn.style.display = currentAudioBlob ? 'flex' : 'none';
     }
 
     // Copy to clipboard
@@ -795,6 +820,19 @@
       }
     });
 
+    // Download audio
+    downloadBtn.addEventListener('click', () => {
+      if (!currentAudioBlob) return;
+      const url = URL.createObjectURL(currentAudioBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = currentAudioName || 'recording.webm';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
     // New upload
     newUploadBtn.addEventListener('click', () => {
       uploadSection.style.display = 'block';
@@ -802,6 +840,8 @@
       status.style.display = 'none';
       fileInput.value = '';
       currentTranscription = '';
+      currentAudioBlob = null;
+      currentAudioName = null;
       dataSafety.className = 'data-safety';
     });
   </script>
