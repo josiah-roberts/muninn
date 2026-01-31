@@ -14,7 +14,7 @@ export interface TranscriptionResult {
 }
 
 export interface STTProvider {
-  transcribe(audioData: Buffer, mimeType: string, prompt?: string): Promise<TranscriptionResult>;
+  transcribe(audioData: Buffer, mimeType: string): Promise<TranscriptionResult>;
 }
 
 // Word-level timestamp from Whisper
@@ -87,7 +87,7 @@ class FasterWhisperProvider implements STTProvider {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
-  async transcribe(audioData: Buffer, mimeType: string, prompt?: string): Promise<TranscriptionResult> {
+  async transcribe(audioData: Buffer, mimeType: string): Promise<TranscriptionResult> {
     const extension = mimeType.includes("webm") ? "webm"
       : mimeType.includes("ogg") ? "ogg"
       : mimeType.includes("mp3") ? "mp3"
@@ -101,15 +101,8 @@ class FasterWhisperProvider implements STTProvider {
     return withRetry(
       async () => {
         // Request word timestamps to detect pauses
-        const params = new URLSearchParams({
-          output: "json",
-          word_timestamps: "true",
-        });
-        if (prompt) {
-          params.set("initial_prompt", prompt);
-        }
         const response = await fetchWithTimeout(
-          `${this.baseUrl}/asr?${params.toString()}`,
+          `${this.baseUrl}/asr?output=json&word_timestamps=true`,
           {
             method: "POST",
             body: formData,

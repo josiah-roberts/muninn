@@ -296,6 +296,70 @@
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
     }
+
+    .prompt-section {
+      margin-bottom: 20px;
+    }
+
+    .prompt-toggle {
+      background: none;
+      border: none;
+      color: #667eea;
+      font-size: 0.9em;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .prompt-toggle:hover {
+      color: #764ba2;
+    }
+
+    .prompt-toggle .arrow {
+      transition: transform 0.2s ease;
+      font-size: 0.8em;
+    }
+
+    .prompt-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+
+    .prompt-body {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .prompt-body.open {
+      display: block;
+    }
+
+    .prompt-body textarea {
+      width: 100%;
+      min-height: 60px;
+      padding: 10px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.9em;
+      line-height: 1.5;
+      resize: vertical;
+      color: #333;
+    }
+
+    .prompt-body textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    }
+
+    .prompt-hint {
+      color: #999;
+      font-size: 0.8em;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -306,6 +370,16 @@
     <div class="status" id="status"></div>
 
     <div id="uploadSection">
+      <div class="prompt-section">
+        <button class="prompt-toggle" id="promptToggle">
+          <span class="arrow" id="promptArrow">&#9654;</span>
+          Transcription prompt
+        </button>
+        <div class="prompt-body" id="promptBody">
+          <textarea id="promptInput" placeholder="e.g. Names, jargon, or style hints to guide transcription"></textarea>
+          <div class="prompt-hint">Helps Whisper recognize specific names, terms, and formatting preferences.</div>
+        </div>
+      </div>
       <div class="input-row">
         <div class="upload-area" id="uploadArea">
           <div class="upload-icon">📁</div>
@@ -369,6 +443,40 @@
     const dataSafety = document.getElementById('dataSafety');
 
     let currentTranscription = '';
+
+    // Prompt elements
+    const promptToggle = document.getElementById('promptToggle');
+    const promptArrow = document.getElementById('promptArrow');
+    const promptBody = document.getElementById('promptBody');
+    const promptInput = document.getElementById('promptInput');
+
+    // Load saved prompt from localStorage
+    try {
+      const saved = localStorage.getItem('whisper-transcribe:prompt');
+      if (saved) {
+        promptInput.value = saved;
+        promptBody.classList.add('open');
+        promptArrow.classList.add('open');
+      }
+    } catch (e) {}
+
+    // Toggle prompt section
+    promptToggle.addEventListener('click', () => {
+      promptBody.classList.toggle('open');
+      promptArrow.classList.toggle('open');
+    });
+
+    // Save prompt on change
+    promptInput.addEventListener('input', () => {
+      try {
+        localStorage.setItem('whisper-transcribe:prompt', promptInput.value);
+      } catch (e) {}
+    });
+
+    function getPrompt() {
+      const val = promptInput.value.trim();
+      return val || undefined;
+    }
 
     // Recording state
     let mediaRecorder = null;
@@ -569,6 +677,8 @@
 
           const formData = new FormData();
           formData.append('audio', file);
+          const prompt = getPrompt();
+          if (prompt) formData.append('prompt', prompt);
 
           const response = await fetch('/api/transcribe', {
             method: 'POST',
@@ -627,6 +737,8 @@
 
       const formData = new FormData();
       formData.append('audio', file);
+      const prompt = getPrompt();
+      if (prompt) formData.append('prompt', prompt);
 
       try {
         const response = await fetch('/api/transcribe', {

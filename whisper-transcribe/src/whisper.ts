@@ -86,7 +86,8 @@ async function fetchWithTimeout(
 export async function transcribeAudio(
   audioData: Buffer,
   mimeType: string,
-  whisperUrl: string
+  whisperUrl: string,
+  prompt?: string
 ): Promise<TranscriptionResult> {
   const extension = mimeType.includes("webm") ? "webm"
     : mimeType.includes("ogg") ? "ogg"
@@ -106,8 +107,15 @@ export async function transcribeAudio(
   const baseUrl = whisperUrl.replace(/\/$/, "");
 
   // Request word timestamps to detect pauses
+  const params = new URLSearchParams({
+    output: "json",
+    word_timestamps: "true",
+  });
+  if (prompt) {
+    params.set("initial_prompt", prompt);
+  }
   const response = await fetchWithTimeout(
-    `${baseUrl}/asr?output=json&word_timestamps=true`,
+    `${baseUrl}/asr?${params.toString()}`,
     {
       method: "POST",
       body: formData,

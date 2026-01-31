@@ -2,8 +2,6 @@ import { useEffect, useState } from 'preact/hooks';
 import { showToast } from '../../store/index.ts';
 import styles from './SettingsModal.module.css';
 
-const TRANSCRIPTION_PROMPT_KEY = 'muninn:transcription-prompt';
-
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -12,7 +10,6 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [overview, setOverview] = useState('');
   const [userProfile, setUserProfile] = useState('');
-  const [transcriptionPrompt, setTranscriptionPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -22,10 +19,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      // Load transcription prompt from localStorage
-      try {
-        setTranscriptionPrompt(localStorage.getItem(TRANSCRIPTION_PROMPT_KEY) || '');
-      } catch {}
       Promise.all([
         fetch('/api/settings/agent-overview').then(r => r.json()),
         fetch('/api/settings/user-profile').then(r => r.json()),
@@ -64,14 +57,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setSaving(true);
     setSaved(false);
     try {
-      // Save transcription prompt to localStorage
-      try {
-        if (transcriptionPrompt) {
-          localStorage.setItem(TRANSCRIPTION_PROMPT_KEY, transcriptionPrompt);
-        } else {
-          localStorage.removeItem(TRANSCRIPTION_PROMPT_KEY);
-        }
-      } catch {}
       await fetch('/api/settings/agent-overview', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -97,20 +82,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
         </div>
         <div class={styles.body}>
-          <div class={styles.section}>
-            <h4>Transcription Prompt</h4>
-            <p class={styles.description}>
-              A style example for the speech-to-text model. Use this to hint spelling of names,
-              jargon, or preferred formatting. This is stored locally on your device.
-            </p>
-            <textarea
-              class={styles.textarea}
-              value={transcriptionPrompt}
-              onInput={(e) => setTranscriptionPrompt((e.target as HTMLTextAreaElement).value)}
-              placeholder="e.g., Josiah spoke with Alex about the Kubernetes deployment at Acme Corp. They discussed the GraphQL migration and TensorFlow models."
-              rows={3}
-            />
-          </div>
           <div class={styles.section}>
             <h4>Agent Context</h4>
             <p class={styles.description}>
