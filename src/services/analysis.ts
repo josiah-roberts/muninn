@@ -178,7 +178,7 @@ export async function generateInterviewQuestions(recentEntries: Entry[]): Promis
   return withRetry(
     async () => {
       const response = await anthropic.messages.create({
-        model: "claude-opus-4-5-20251101",
+        model: "claude-fable-5",
         max_tokens: 500,
         messages: [
           {

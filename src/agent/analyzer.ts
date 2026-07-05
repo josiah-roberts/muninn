@@ -284,14 +284,14 @@ ${transcript}
     console.error(`[AgentAnalyzer:${entryId}] [stderr] ${message}`);
   };
 
-  console.log(`[AgentAnalyzer:${entryId}] Calling query() with model=claude-opus-4-5-20251101, maxTurns=50, maxThinkingTokens=10000`);
+  console.log(`[AgentAnalyzer:${entryId}] Calling query() with model=claude-fable-5, maxTurns=100, maxThinkingTokens=10000`);
   console.log(`[AgentAnalyzer:${entryId}] Allowed tools: search_entries, list_entries, read_entry, write_user_profile, edit_user_profile, conclude_analysis`);
 
   const response = query({
     prompt,
     options: {
-      model: "claude-opus-4-5-20251101",
-      maxTurns: 50,
+      model: "claude-fable-5",
+      maxTurns: 100,
       systemPrompt,
       // Use custom MCP tools that filter out current entry
       mcpServers: { "journal-tools": journalTools },
